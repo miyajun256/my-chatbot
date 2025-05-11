@@ -44,7 +44,6 @@ export default function MyChatbot() {
           className="flex-1 border px-2 py-1 rounded"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
         />
         <button onClick={sendMessage} className="bg-black text-white px-4 py-1 rounded">送信</button>
       </div>
