@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import "./styles.css";
 
 interface Message {
   role: "user" | "assistant";
@@ -121,6 +122,7 @@ export default function MyChatbot() {
 
   // モデル情報表示用
   const getModelBadgeColor = (modelId: string) => {
+    if (!modelId) return "bg-gray-500";
     if (modelId.includes("gpt-4")) return "bg-green-500";
     if (modelId.includes("claude")) return "bg-purple-500";
     if (modelId.includes("gpt-3.5")) return "bg-yellow-500";
@@ -191,21 +193,56 @@ export default function MyChatbot() {
     setSelectedModel(e.target.value);
   };
 
+  // ローディングドット用のスタイル
+  const loadingDotStyle = "inline-block w-1 h-1 mx-0.5 rounded-full bg-current";
+
+  // アニメーションのスタイル
+  const spinnerStyle = {
+    display: 'flex',
+    alignItems: 'center', 
+    gap: '2px'
+  };
+
+  const dotStyle = {
+    width: '4px',
+    height: '4px',
+    backgroundColor: 'currentColor',
+    borderRadius: '50%',
+    display: 'inline-block'
+  };
+
+  const dot1Style = {
+    ...dotStyle,
+    animation: 'bounce 1s infinite'
+  };
+
+  const dot2Style = {
+    ...dotStyle,
+    animation: 'bounce 1s infinite',
+    animationDelay: '200ms'
+  };
+
+  const dot3Style = {
+    ...dotStyle,
+    animation: 'bounce 1s infinite',
+    animationDelay: '400ms'
+  };
+
   return (
-    <div className={`min-h-screen ${darkMode ? "dark bg-gray-900" : "bg-gray-50"} transition-colors duration-200`}>
+    <div className={`min-h-screen ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-black"} transition-colors duration-200`}>
       <div className="max-w-xl mx-auto p-4 space-y-4">
         <div className="flex justify-between items-center">
-          <h1 className={`text-2xl font-bold ${darkMode ? "text-white" : "text-black"}`}>俺っぽいAI</h1>
+          <h1 className="text-2xl font-bold">俺っぽいAI</h1>
           <div className="flex space-x-2">
             <button 
               onClick={toggleDarkMode}
-              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-gray-200 text-black"} hover:opacity-80`}
+              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700" : "bg-gray-200"} hover:opacity-80`}
             >
               {darkMode ? "ライトモード" : "ダークモード"}
             </button>
             <button 
               onClick={clearChat}
-              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-gray-200 text-black"} hover:opacity-80`}
+              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700" : "bg-gray-200"} hover:opacity-80`}
             >
               会話をリセット
             </button>
@@ -213,12 +250,12 @@ export default function MyChatbot() {
         </div>
         
         {/* モデル選択 */}
-        <div className={`${darkMode ? "text-white" : "text-black"} flex items-center`}>
+        <div className="flex items-center">
           <label className="text-sm mr-2">AIモデル:</label>
           {loadingModels ? (
             <div className="flex items-center">
-              <div className="animate-pulse w-32 h-6 bg-gray-300 rounded"></div>
-              <span className="ml-2 text-xs text-gray-400">読み込み中...</span>
+              <div className={`animate-pulse w-32 h-6 ${darkMode ? "bg-gray-700" : "bg-gray-300"} rounded`}></div>
+              <span className={`ml-2 text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>読み込み中...</span>
             </div>
           ) : (
             <>
@@ -240,7 +277,7 @@ export default function MyChatbot() {
               </select>
               <div className="ml-1">
                 <span 
-                  className={`text-xs inline-block rounded-full w-2 h-2 ${getModelBadgeColor(selectedModel)}`}
+                  className={`inline-block rounded-full w-2 h-2 ${getModelBadgeColor(selectedModel)}`}
                 />
               </div>
             </>
@@ -248,19 +285,19 @@ export default function MyChatbot() {
         </div>
         
         {error && (
-          <div className={`p-2 rounded ${darkMode ? "bg-red-900" : "bg-red-100"} ${darkMode ? "text-red-200" : "text-red-800"} text-sm`}>
+          <div className={`p-2 rounded ${darkMode ? "bg-red-900 text-red-200" : "bg-red-100 text-red-800"} text-sm`}>
             {error}
           </div>
         )}
         
-        <div className={`p-4 rounded-lg h-96 overflow-y-auto ${darkMode ? "bg-gray-800" : "bg-white"} border ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+        <div className={`p-4 rounded-lg h-96 overflow-y-auto ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} border`}>
           {messages.map((msg, i) => (
             <div key={i} className={`my-2 ${msg.role === "user" ? "flex justify-end" : "flex justify-start"}`}>
               <div 
                 className={`max-w-[80%] rounded-lg px-4 py-2 ${
                   msg.role === "user" 
                     ? `${darkMode ? "bg-blue-600" : "bg-blue-500"} text-white` 
-                    : `${darkMode ? "bg-gray-700" : "bg-gray-100"} ${darkMode ? "text-white" : "text-black"}`
+                    : `${darkMode ? "bg-gray-700 text-white" : "bg-gray-100 text-black"}`
                 }`}
               >
                 {msg.content}
@@ -272,10 +309,10 @@ export default function MyChatbot() {
               <div className={`max-w-[80%] rounded-lg px-4 py-2 ${darkMode ? "bg-gray-700 text-white" : "bg-gray-100 text-black"}`}>
                 <div className="flex items-center">
                   <span>考え中</span>
-                  <span className="ml-1 inline-flex">
-                    <span className="animate-bounce mx-0.5">.</span>
-                    <span className="animate-bounce animation-delay-200 mx-0.5">.</span>
-                    <span className="animate-bounce animation-delay-400 mx-0.5">.</span>
+                  <span className="flex ml-2" style={spinnerStyle}>
+                    <span style={dot1Style}></span>
+                    <span style={dot2Style}></span>
+                    <span style={dot3Style}></span>
                   </span>
                 </div>
               </div>
