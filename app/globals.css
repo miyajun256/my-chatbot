@@ -55,7 +55,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-[#e5e7eb] dark:border-[#292524];
   }
   body {
     @apply bg-background text-foreground;
@@ -72,6 +72,16 @@ body {
 @media (prefers-color-scheme: dark) {
   .dark {
     color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .bg-300\% {
+    background-size: 300% 300%;
+  }
+  
+  .animate-gradient {
+    animation: gradient 15s ease infinite;
   }
 }
 

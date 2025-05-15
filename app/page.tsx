@@ -228,7 +228,7 @@ export default function MyChatbot() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-950 animate-gradient bg-300%">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-950 bg-[length:300%_300%] animate-gradient">
       <div className="max-w-4xl mx-auto p-6">
         {/* ヘッダー */}
         <div className="backdrop-blur-md bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow-xl mb-6 p-4 border border-gray-200 dark:border-gray-800">

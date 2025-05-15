@@ -39,6 +39,9 @@ module.exports = {
           foreground: "var(--card-foreground)",
         },
       },
+      backgroundSize: {
+        "300%": "300% 300%",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
