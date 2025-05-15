@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import "./styles.css";
 
 interface Message {
   role: "user" | "assistant";
@@ -59,6 +58,7 @@ export default function MyChatbot() {
     const savedDarkMode = localStorage.getItem("darkMode");
     if (savedDarkMode === "true") {
       setDarkMode(true);
+      document.documentElement.classList.add('dark');
     }
   }, []);
 
@@ -193,19 +193,18 @@ export default function MyChatbot() {
     setSelectedModel(e.target.value);
   };
 
-  // ローディングドット用のスタイル
-  const loadingDotStyle = "inline-block w-1 h-1 mx-0.5 rounded-full bg-current";
-
   // アニメーションのスタイル
   const spinnerStyle = {
     display: 'flex',
     alignItems: 'center', 
-    gap: '2px'
+    marginLeft: '8px',
+    gap: '4px'
   };
 
   const dotStyle = {
     width: '4px',
     height: '4px',
+    margin: '0 1px',
     backgroundColor: 'currentColor',
     borderRadius: '50%',
     display: 'inline-block'
@@ -219,132 +218,160 @@ export default function MyChatbot() {
   const dot2Style = {
     ...dotStyle,
     animation: 'bounce 1s infinite',
-    animationDelay: '200ms'
+    animationDelay: '0.2s'
   };
 
   const dot3Style = {
     ...dotStyle,
     animation: 'bounce 1s infinite',
-    animationDelay: '400ms'
+    animationDelay: '0.4s'
   };
 
   return (
-    <div className={`min-h-screen ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-black"} transition-colors duration-200`}>
-      <div className="max-w-xl mx-auto p-4 space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">俺っぽいAI</h1>
-          <div className="flex space-x-2">
-            <button 
-              onClick={toggleDarkMode}
-              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700" : "bg-gray-200"} hover:opacity-80`}
-            >
-              {darkMode ? "ライトモード" : "ダークモード"}
-            </button>
-            <button 
-              onClick={clearChat}
-              className={`text-sm px-2 py-1 rounded ${darkMode ? "bg-gray-700" : "bg-gray-200"} hover:opacity-80`}
-            >
-              会話をリセット
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-950 animate-gradient bg-300%">
+      <div className="max-w-4xl mx-auto p-6">
+        {/* ヘッダー */}
+        <div className="backdrop-blur-md bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow-xl mb-6 p-4 border border-gray-200 dark:border-gray-800">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
+                AI
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-400 bg-clip-text text-transparent">俺っぽいAI</h1>
+            </div>
+            <div className="flex space-x-3">
+              <button 
+                onClick={toggleDarkMode}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm bg-white/20 dark:bg-gray-800/20 border border-gray-300 dark:border-gray-700 shadow-sm transition-all hover:shadow-md"
+              >
+                <span className="text-sm">{darkMode ? "🌞" : "🌙"}</span>
+                <span className="text-sm font-medium">{darkMode ? "ライト" : "ダーク"}</span>
+              </button>
+              <button 
+                onClick={clearChat}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm bg-white/20 dark:bg-gray-800/20 border border-gray-300 dark:border-gray-700 shadow-sm transition-all hover:shadow-md"
+              >
+                <span className="text-sm">🔄</span>
+                <span className="text-sm font-medium">リセット</span>
+              </button>
+            </div>
+          </div>
+
+          {/* モデル選択 */}
+          <div className="mt-4 flex items-center">
+            <div className="flex items-center p-1.5 rounded-lg backdrop-blur-sm bg-white/20 dark:bg-gray-800/20 border border-gray-300 dark:border-gray-700">
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300 px-2">AIモデル</span>
+              {loadingModels ? (
+                <div className="flex items-center space-x-2 px-3 py-1">
+                  <div className="h-4 w-32 animate-pulse rounded bg-gray-300 dark:bg-gray-700"></div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <select 
+                    value={selectedModel} 
+                    onChange={handleModelChange}
+                    className="appearance-none pl-3 pr-8 py-1 rounded-md text-sm bg-white/50 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  >
+                    {modelOptions.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <div className={`w-2 h-2 rounded-full ${getModelBadgeColor(selectedModel)}`}></div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
-        {/* モデル選択 */}
-        <div className="flex items-center">
-          <label className="text-sm mr-2">AIモデル:</label>
-          {loadingModels ? (
-            <div className="flex items-center">
-              <div className={`animate-pulse w-32 h-6 ${darkMode ? "bg-gray-700" : "bg-gray-300"} rounded`}></div>
-              <span className={`ml-2 text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>読み込み中...</span>
-            </div>
-          ) : (
-            <>
-              <select 
-                value={selectedModel} 
-                onChange={handleModelChange}
-                className={`text-sm rounded px-2 py-1 ${
-                  darkMode 
-                    ? "bg-gray-800 text-white border-gray-700" 
-                    : "bg-white text-black border-gray-300"
-                } border focus:outline-none focus:ring-1 focus:ring-blue-500`}
-                disabled={loading}
-              >
-                {modelOptions.map(option => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
-              <div className="ml-1">
-                <span 
-                  className={`inline-block rounded-full w-2 h-2 ${getModelBadgeColor(selectedModel)}`}
-                />
-              </div>
-            </>
-          )}
-        </div>
-        
+        {/* エラーメッセージ */}
         {error && (
-          <div className={`p-2 rounded ${darkMode ? "bg-red-900 text-red-200" : "bg-red-100 text-red-800"} text-sm`}>
-            {error}
+          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 text-sm backdrop-blur-sm">
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {error}
+            </div>
           </div>
         )}
         
-        <div className={`p-4 rounded-lg h-96 overflow-y-auto ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} border`}>
-          {messages.map((msg, i) => (
-            <div key={i} className={`my-2 ${msg.role === "user" ? "flex justify-end" : "flex justify-start"}`}>
+        {/* チャットウィンドウ */}
+        <div className="backdrop-blur-md bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow-xl p-5 border border-gray-200 dark:border-gray-800 h-[500px] overflow-y-auto">
+          <div className="space-y-6">
+            {messages.map((msg, i) => (
               <div 
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                  msg.role === "user" 
-                    ? `${darkMode ? "bg-blue-600" : "bg-blue-500"} text-white` 
-                    : `${darkMode ? "bg-gray-700 text-white" : "bg-gray-100 text-black"}`
-                }`}
+                key={i} 
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start my-2">
-              <div className={`max-w-[80%] rounded-lg px-4 py-2 ${darkMode ? "bg-gray-700 text-white" : "bg-gray-100 text-black"}`}>
-                <div className="flex items-center">
-                  <span>考え中</span>
-                  <span className="flex ml-2" style={spinnerStyle}>
-                    <span style={dot1Style}></span>
-                    <span style={dot2Style}></span>
-                    <span style={dot3Style}></span>
-                  </span>
+                <div 
+                  className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm ${
+                    msg.role === "user" 
+                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-tr-none" 
+                      : "backdrop-blur-sm bg-gray-100/80 dark:bg-gray-800/80 rounded-tl-none"
+                  }`}
+                >
+                  <div className="text-sm">{msg.content}</div>
                 </div>
               </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+            ))}
+            
+            {loading && (
+              <div className="flex justify-start">
+                <div className="max-w-[75%] px-4 py-3 rounded-2xl shadow-sm backdrop-blur-sm bg-gray-100/80 dark:bg-gray-800/80 rounded-tl-none">
+                  <div className="flex items-center">
+                    <span className="text-sm">考え中</span>
+                    <div style={spinnerStyle}>
+                      <span style={dot1Style}></span>
+                      <span style={dot2Style}></span>
+                      <span style={dot3Style}></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
         </div>
-        <div className="flex gap-2">
-          <textarea
-            className={`flex-1 px-3 py-2 rounded-lg resize-none border ${
-              darkMode 
-                ? "bg-gray-800 text-white border-gray-700 focus:border-blue-500" 
-                : "bg-white text-black border-gray-300 focus:border-blue-400"
-            } focus:outline-none focus:ring-1 focus:ring-blue-500`}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            rows={2}
-            placeholder="メッセージを入力..."
-            disabled={loading}
-          />
-          <button 
-            onClick={sendMessage}
-            className={`${
-              loading 
-                ? "bg-gray-400 cursor-not-allowed" 
-                : "bg-blue-500 hover:bg-blue-600"
-            } text-white px-4 py-2 rounded-lg transition`}
-            disabled={loading}
-          >
-            {loading ? "送信中..." : "送信"}
-          </button>
+        
+        {/* 入力エリア */}
+        <div className="mt-4 backdrop-blur-md bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow-lg p-4 border border-gray-200 dark:border-gray-800">
+          <div className="flex">
+            <textarea
+              className="flex-1 p-3 rounded-xl bg-white/40 dark:bg-gray-800/40 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none shadow-inner"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              rows={2}
+              placeholder="メッセージを入力..."
+              disabled={loading}
+            />
+            <button 
+              onClick={sendMessage}
+              disabled={loading}
+              className={`ml-3 px-5 py-2 rounded-xl flex items-center justify-center transition-all ${
+                loading 
+                  ? "bg-gray-400 cursor-not-allowed text-gray-200" 
+                  : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:shadow-lg"
+              }`}
+            >
+              {loading ? (
+                <span>送信中...</span>
+              ) : (
+                <span className="flex items-center">
+                  <span>送信</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
