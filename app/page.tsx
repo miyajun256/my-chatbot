@@ -11,13 +11,47 @@ interface Message {
   content: string;
 }
 
+interface ModelOption {
+  id: string;
+  name: string;
+}
+
 export default function MyChatbot() {
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "よう。何か聞きたいことある？" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // モデル一覧を取得
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setLoadingModels(true);
+        const res = await fetch("/api/chat");
+        const data = await res.json();
+        
+        const options = Object.entries(data.models).map(([id, name]) => ({
+          id,
+          name: name as string
+        }));
+        
+        setModelOptions(options);
+        setSelectedModel(data.defaultModel);
+      } catch (err) {
+        console.error("Error fetching models:", err);
+        setError("モデル情報の取得に失敗しました");
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+    
+    fetchModels();
+  }, []);
 
   // ダークモード設定の読み込み
   useEffect(() => {
@@ -37,6 +71,13 @@ export default function MyChatbot() {
     }
   }, [darkMode]);
 
+  // 選択中のモデルを保存
+  useEffect(() => {
+    if (selectedModel) {
+      localStorage.setItem("selectedModel", selectedModel);
+    }
+  }, [selectedModel]);
+
   // ローカルストレージから会話履歴を読み込む
   useEffect(() => {
     const savedMessages = localStorage.getItem("chatHistory");
@@ -53,6 +94,12 @@ export default function MyChatbot() {
       } catch (e) {
         console.error("Failed to parse saved messages:", e);
       }
+    }
+
+    // 保存されたモデル設定の読み込み
+    const savedModel = localStorage.getItem("selectedModel");
+    if (savedModel) {
+      setSelectedModel(savedModel);
     }
   }, []);
 
@@ -72,6 +119,14 @@ export default function MyChatbot() {
     scrollToBottom();
   }, [messages]);
 
+  // モデル情報表示用
+  const getModelBadgeColor = (modelId: string) => {
+    if (modelId.includes("gpt-4")) return "bg-green-500";
+    if (modelId.includes("claude")) return "bg-purple-500";
+    if (modelId.includes("gpt-3.5")) return "bg-yellow-500";
+    return "bg-gray-500";
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
     setError(null);
@@ -84,7 +139,10 @@ export default function MyChatbot() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ 
+          messages: newMessages,
+          model: selectedModel 
+        }),
       });
       
       if (!res.ok) {
@@ -128,6 +186,11 @@ export default function MyChatbot() {
     setDarkMode(!darkMode);
   };
 
+  // モデル選択の変更
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedModel(e.target.value);
+  };
+
   return (
     <div className={`min-h-screen ${darkMode ? "dark bg-gray-900" : "bg-gray-50"} transition-colors duration-200`}>
       <div className="max-w-xl mx-auto p-4 space-y-4">
@@ -147,6 +210,41 @@ export default function MyChatbot() {
               会話をリセット
             </button>
           </div>
+        </div>
+        
+        {/* モデル選択 */}
+        <div className={`${darkMode ? "text-white" : "text-black"} flex items-center`}>
+          <label className="text-sm mr-2">AIモデル:</label>
+          {loadingModels ? (
+            <div className="flex items-center">
+              <div className="animate-pulse w-32 h-6 bg-gray-300 rounded"></div>
+              <span className="ml-2 text-xs text-gray-400">読み込み中...</span>
+            </div>
+          ) : (
+            <>
+              <select 
+                value={selectedModel} 
+                onChange={handleModelChange}
+                className={`text-sm rounded px-2 py-1 ${
+                  darkMode 
+                    ? "bg-gray-800 text-white border-gray-700" 
+                    : "bg-white text-black border-gray-300"
+                } border focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                disabled={loading}
+              >
+                {modelOptions.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+              <div className="ml-1">
+                <span 
+                  className={`text-xs inline-block rounded-full w-2 h-2 ${getModelBadgeColor(selectedModel)}`}
+                />
+              </div>
+            </>
+          )}
         </div>
         
         {error && (
@@ -172,7 +270,14 @@ export default function MyChatbot() {
           {loading && (
             <div className="flex justify-start my-2">
               <div className={`max-w-[80%] rounded-lg px-4 py-2 ${darkMode ? "bg-gray-700 text-white" : "bg-gray-100 text-black"}`}>
-                考え中…
+                <div className="flex items-center">
+                  <span>考え中</span>
+                  <span className="ml-1 inline-flex">
+                    <span className="animate-bounce mx-0.5">.</span>
+                    <span className="animate-bounce animation-delay-200 mx-0.5">.</span>
+                    <span className="animate-bounce animation-delay-400 mx-0.5">.</span>
+                  </span>
+                </div>
               </div>
             </div>
           )}
