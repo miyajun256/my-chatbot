@@ -171,291 +171,66 @@ export default function MyChatbot() {
     return "";
   };
 
-  // マルバツゲームの関数
-  const handleCellClick = (index: number) => {
-    // すでにマークがあるか、ゲームが終了している場合は何もしない
-    if (tictactoe.board[index] || !tictactoe.isPlayerTurn || tictactoe.gameOver) return;
-    
-    // プレイヤーがマルを3つ以上使っている場合は置けない
-    if (tictactoe.playerMarks >= 3 && !tictactoe.board.includes('○')) return;
-    
-    // 新しいボードを作成
-    const newBoard = [...tictactoe.board];
-    
-    // プレイヤーの手を置く（マルの数をカウント）
-    if (tictactoe.playerMarks < 3 || newBoard.includes('○')) {
-      // 3つ未満の場合、または既存のマルを動かす場合
-      if (tictactoe.playerMarks >= 3) {
-        // 既存のマルを動かす場合は、1つ目のマルを削除
-        const firstMarkIndex = newBoard.findIndex(cell => cell === '○');
-        if (firstMarkIndex !== -1) {
-          newBoard[firstMarkIndex] = null;
-        }
-      }
-      
-      newBoard[index] = '○';
-      
-      // 勝敗判定
-      const winner = checkWinner(newBoard);
-      if (winner) {
-        setTictactoe(prevState => ({
-          ...prevState,
-          board: newBoard,
-          gameOver: true,
-          winner: winner,
-          playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
-        }));
-        return;
-      }
-      
-      // AIのターンに変更
-      setTictactoe(prevState => ({
-        ...prevState,
-        board: newBoard,
-        isPlayerTurn: false,
-        playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
-      }));
-      
-      // AIの手を計算
-      setTimeout(() => aiMove(newBoard), 700);
+  // AIのターン用のuseEffect（マルバツゲーム）
+  useEffect(() => {
+    // ゲームが表示されていて、AIのターンで、ゲームが終了していない場合
+    if (showGame && !tictactoe.isPlayerTurn && !tictactoe.gameOver) {
+      // AIの手を少し遅延させて実行
+      const timer = setTimeout(() => aiMove(tictactoe.board), 700);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [showGame, tictactoe.isPlayerTurn, tictactoe.gameOver, tictactoe.board]);
 
-  // AIの手を計算
-  const aiMove = (board: Array<string | null>) => {
-    // すでにゲームが終了している場合は何もしない
-    if (tictactoe.gameOver) return;
-    
-    const newBoard = [...board];
-    
-    // AIがバツを3つ以上使っている場合
-    if (tictactoe.aiMarks >= 3) {
-      // 既存のバツを動かす必要がある
-      // 勝てる手があるか確認
-      for (let i = 0; i < 9; i++) {
-        if (!newBoard[i]) {
-          // 既存のバツを動かして試す
-          for (let j = 0; j < 9; j++) {
-            if (newBoard[j] === '×') {
-              // 一時的にマークを移動
-              const testBoard = [...newBoard];
-              testBoard[j] = null;
-              testBoard[i] = '×';
-              
-              // この手で勝てるか確認
-              if (checkWinner(testBoard) === '×') {
-                newBoard[j] = null;
-                newBoard[i] = '×';
-                
-                setTictactoe(prevState => ({
-                  ...prevState,
-                  board: newBoard,
-                  isPlayerTurn: true,
-                  gameOver: true,
-                  winner: '×'
-                }));
-                return;
-              }
-            }
-          }
-        }
-      }
-      
-      // 勝てる手がなければ、防御または良い位置に移動
-      // プレイヤーが次に勝てる手を防ぐ
-      for (let i = 0; i < 9; i++) {
-        if (!newBoard[i]) {
-          // このマスにプレイヤーが置いた場合
-          const testBoard = [...newBoard];
-          testBoard[i] = '○';
-          
-          if (checkWinner(testBoard) === '○') {
-            // プレイヤーがここに置くと勝つので防ぐ
-            // 既存のバツを移動
-            const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
-            if (firstMarkIndex !== -1) {
-              newBoard[firstMarkIndex] = null;
-              newBoard[i] = '×';
-              
-              setTictactoe(prevState => ({
-                ...prevState,
-                board: newBoard,
-                isPlayerTurn: true,
-                aiMarks: prevState.aiMarks
-              }));
-              return;
-            }
-          }
-        }
-      }
-      
-      // どちらも当てはまらない場合は、最初のバツを良い位置に移動
-      const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
-      // 空いているマスを探す（中央を優先）
-      const emptyIndexes = [];
-      for (let i = 0; i < 9; i++) {
-        if (!newBoard[i]) {
-          emptyIndexes.push(i);
-        }
-      }
-      
-      // 中央が空いていれば優先
-      if (emptyIndexes.includes(4)) {
-        newBoard[firstMarkIndex] = null;
-        newBoard[4] = '×';
-      } else {
-        // ランダムに選択
-        const randomIndex = emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
-        newBoard[firstMarkIndex] = null;
-        newBoard[randomIndex] = '×';
-      }
-    } else {
-      // AIがバツを3つ未満の場合、新しい位置に置く
-      const bestMove = findBestMove(newBoard, tictactoe.aiMarks);
-      
-      if (bestMove !== -1) {
-        newBoard[bestMove] = '×';
-      }
+  // AIのターン用のuseEffect（オセロ）
+  useEffect(() => {
+    // ゲームが表示されていて、AIのターン（白）で、ゲームが終了していない場合
+    if (showOthello && othello.currentPlayer === 'white' && !othello.gameOver) {
+      // AIの手を少し遅延させて実行
+      const timer = setTimeout(() => makeAIMove(othello.board), 800);
+      return () => clearTimeout(timer);
     }
-    
-    // 勝敗判定
-    const winner = checkWinner(newBoard);
-    if (winner) {
-      setTictactoe(prevState => ({
-        ...prevState,
-        board: newBoard,
-        isPlayerTurn: true,
-        gameOver: true,
-        winner: winner,
-        aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
-      }));
-      return;
-    }
-    
-    // プレイヤーのターンに戻す
-    setTictactoe(prevState => ({
-      ...prevState,
-      board: newBoard,
-      isPlayerTurn: true,
-      aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
-    }));
-  };
+  }, [showOthello, othello.currentPlayer, othello.gameOver, othello.board]);
 
-  // 最適な手を見つける
-  const findBestMove = (board: Array<string | null>, aiMarksCount: number): number => {
-    // 勝てる手があれば選択
-    for (let i = 0; i < 9; i++) {
-      if (!board[i]) {
-        const testBoard = [...board];
-        testBoard[i] = '×';
-        if (checkWinner(testBoard) === '×') {
-          return i;
-        }
-      }
-    }
-    
-    // 相手が次に勝てる手を防ぐ
-    for (let i = 0; i < 9; i++) {
-      if (!board[i]) {
-        const testBoard = [...board];
-        testBoard[i] = '○';
-        if (checkWinner(testBoard) === '○') {
-          return i;
-        }
-      }
-    }
-    
-    // 中央が空いていれば選択
-    if (!board[4]) {
-      return 4;
-    }
-    
-    // 角が空いていれば選択
-    const corners = [0, 2, 6, 8];
-    const emptyCorners = corners.filter(i => !board[i]);
-    if (emptyCorners.length > 0) {
-      return emptyCorners[Math.floor(Math.random() * emptyCorners.length)];
-    }
-    
-    // それ以外の場合は空いているマスをランダムに選択
-    const emptyIndexes = [];
-    for (let i = 0; i < 9; i++) {
-      if (!board[i]) {
-        emptyIndexes.push(i);
-      }
-    }
-    
-    if (emptyIndexes.length > 0) {
-      return emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
-    }
-    
-    return -1;
-  };
-
-  // 勝者を判定
-  const checkWinner = (board: Array<string | null>): string | null => {
-    const lines = [
-      [0, 1, 2],
-      [3, 4, 5],
-      [6, 7, 8],
-      [0, 3, 6],
-      [1, 4, 7],
-      [2, 5, 8],
-      [0, 4, 8],
-      [2, 4, 6],
-    ];
-    
-    for (let i = 0; i < lines.length; i++) {
-      const [a, b, c] = lines[i];
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
-      }
-    }
-    
-    return null;
-  };
-
-  // ゲームをリセット
-  const resetGame = () => {
-    // ゲームの状態を初期化
-    const newState: TicTacToeState = {
-      board: Array(9).fill(null),
-      isPlayerTurn: false, // AIが先手になるようfalseに設定
-      gameOver: false,
-      winner: null,
-      playerMarks: 0,
-      aiMarks: 0
-    };
-    
-    setTictactoe(newState);
-    
-    // AIが先行で打つため、少し遅延させてAIの手を実行
-    setTimeout(() => {
-      if (!showGame) return; // ゲームが表示されていない場合は実行しない
-      const newBoard = [...Array(9).fill(null)]; // 新しい配列を作成
-      // 最初の手は中央か角を選ぶ
-      const firstMoves = [0, 2, 4, 6, 8];
-      const firstMove = firstMoves[Math.floor(Math.random() * firstMoves.length)];
-      newBoard[firstMove] = '×';
-      
-      setTictactoe(prevState => ({
-        ...prevState,
-        board: newBoard,
-        isPlayerTurn: true, // プレイヤーのターンに変更
-        aiMarks: 1 // AIのマークを1つ増やす
-      }));
-    }, 800);
-  };
-  
-  // ゲーム表示切り替え
+  // ゲーム表示切り替え（マルバツ）
   const toggleGame = () => {
     if (!showGame) {
-      setShowGame(true); // 先にゲーム表示状態を更新
-      setTimeout(() => resetGame(), 100); // 少し遅延させてからリセット処理を行う
+      setShowGame(true);
+      setShowOthello(false);
+      resetGame();
     } else {
       setShowGame(false);
     }
-    setShowOthello(false);
+  };
+  
+  // マルバツゲームをリセット
+  const resetGame = () => {
+    // ゲームの状態を初期化
+    const newBoard = Array(9).fill(null);
+    
+    // 先行がAIの場合は、最初の手を決める（中央か角）
+    const firstMoves = [0, 2, 4, 6, 8];
+    const firstMove = firstMoves[Math.floor(Math.random() * firstMoves.length)];
+    newBoard[firstMove] = '×';
+    
+    setTictactoe({
+      board: newBoard,
+      isPlayerTurn: true, // プレイヤーのターンに設定
+      gameOver: false,
+      winner: null,
+      playerMarks: 0,
+      aiMarks: 1 // AIはすでに1つマークを置いた
+    });
+  };
+
+  // ゲーム切り替え（オセロ）
+  const toggleOthello = () => {
+    if (!showOthello) {
+      setShowOthello(true);
+      setShowGame(false);
+      initOthelloBoard();
+    } else {
+      setShowOthello(false);
+    }
   };
 
   // オセロゲームの初期化
@@ -470,21 +245,28 @@ export default function MyChatbot() {
     newBoard[mid + 1][mid] = 'black';
     newBoard[mid + 1][mid + 1] = 'white';
     
-    // 打てる場所を計算
-    const legalMoves = findLegalMoves(newBoard, 'black');
+    // 黒と白の石の数をカウント
+    let blackCount = 0;
+    let whiteCount = 0;
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 6; c++) {
+        if (newBoard[r][c] === 'black') blackCount++;
+        else if (newBoard[r][c] === 'white') whiteCount++;
+      }
+    }
     
     // 初期状態をセット
     setOthello({
       board: newBoard,
       currentPlayer: 'black',
       gameOver: false,
-      blackCount: 2,
-      whiteCount: 2,
-      skipTurn: legalMoves.length === 0
+      blackCount,
+      whiteCount,
+      skipTurn: false
     });
   };
   
-  // 合法手を見つける
+  // 合法手を見つける（オセロ）
   const findLegalMoves = (board: string[][], player: 'black' | 'white'): [number, number][] => {
     const opponent = player === 'black' ? 'white' : 'black';
     const legalMoves: [number, number][] = [];
@@ -565,23 +347,20 @@ export default function MyChatbot() {
     // ゲーム終了時またはすでに石がある場合は何もしない
     if (othello.gameOver || othello.board[row][col] !== '') return;
     
-    // 現在のプレイヤー
-    const currentPlayer = othello.currentPlayer;
-    const board = [...othello.board.map(row => [...row])];
-    
     // この位置が合法手かチェック
-    const legalMoves = findLegalMoves(board, currentPlayer);
+    const legalMoves = findLegalMoves(othello.board, 'black');
     const isLegalMove = legalMoves.some(([r, c]) => r === row && c === col);
     
     if (!isLegalMove) return;
     
     // 石を置く
-    board[row][col] = currentPlayer;
+    const board = [...othello.board.map(row => [...row])];
+    board[row][col] = 'black';
     
     // 裏返す石を計算して適用
-    const flippedDiscs = getFlippedDiscs(board, row, col, currentPlayer);
+    const flippedDiscs = getFlippedDiscs(board, row, col, 'black');
     for (const [r, c] of flippedDiscs) {
-      board[r][c] = currentPlayer;
+      board[r][c] = 'black';
     }
     
     // 黒と白の石の数を数える
@@ -594,22 +373,19 @@ export default function MyChatbot() {
       }
     }
     
-    // 次のプレイヤー
-    const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
-    
     // 次のプレイヤーの合法手をチェック
-    const nextLegalMoves = findLegalMoves(board, nextPlayer);
+    const nextLegalMoves = findLegalMoves(board, 'white');
     const canNextPlayerMove = nextLegalMoves.length > 0;
     
     // 次のプレイヤーが打てない場合、現在のプレイヤーが再度打てるかチェック
     if (!canNextPlayerMove) {
-      const currentPlayerCanMove = findLegalMoves(board, currentPlayer).length > 0;
+      const currentPlayerCanMove = findLegalMoves(board, 'black').length > 0;
       
       // どちらも打てない場合はゲーム終了
       if (!currentPlayerCanMove) {
         setOthello({
           board,
-          currentPlayer: nextPlayer,
+          currentPlayer: 'white',
           gameOver: true,
           blackCount,
           whiteCount,
@@ -621,7 +397,7 @@ export default function MyChatbot() {
       // 次のプレイヤーがスキップ
       setOthello({
         board,
-        currentPlayer: currentPlayer, // 同じプレイヤーのターン
+        currentPlayer: 'black', // 同じプレイヤーのターン
         gameOver: false,
         blackCount,
         whiteCount,
@@ -631,23 +407,20 @@ export default function MyChatbot() {
       return;
     }
     
-    // プレイヤーがwhiteの場合、次はAIの手番
+    // AIのターンに変更
     setOthello({
       board,
-      currentPlayer: nextPlayer,
+      currentPlayer: 'white',
       gameOver: false,
       blackCount,
       whiteCount,
       skipTurn: false
     });
     
-    // AIのターンの場合、少し遅延させてAIの手を実行
-    if (nextPlayer === 'white') {
-      setTimeout(() => makeAIMove(board), 800);
-    }
+    // useEffectがAIの手を自動的に実行するので、ここでのmakeAIMove呼び出しは不要
   };
   
-  // AIの手を計算
+  // AIの手を計算（オセロ）
   const makeAIMove = (currentBoard: string[][]) => {
     // ゲームがすでに終了している場合は何もしない
     if (othello.gameOver) return;
@@ -661,17 +434,17 @@ export default function MyChatbot() {
       
       if (!playerCanMove) {
         // どちらも打てない場合はゲーム終了
-        setOthello({
-          ...othello,
+        setOthello(prevState => ({
+          ...prevState,
           gameOver: true
-        });
+        }));
       } else {
         // AIがスキップしてプレイヤーのターンに戻る
-        setOthello({
-          ...othello,
+        setOthello(prevState => ({
+          ...prevState,
           currentPlayer: 'black',
           skipTurn: true
-        });
+        }));
       }
       return;
     }
@@ -722,22 +495,97 @@ export default function MyChatbot() {
       }
     }
     
-    // 石を置く
-    placeDisc(bestMove[0], bestMove[1]);
-  };
-  
-  // オセロゲームをリセット
-  const resetOthello = () => {
-    initOthelloBoard();
-  };
-  
-  // ゲーム切り替え
-  const toggleOthello = () => {
-    if (!showOthello) {
-      resetOthello();
-      setShowGame(false);
+    // bestMoveが決まったら、その位置に石を置く
+    if (bestMove[0] !== -1 && bestMove[1] !== -1) {
+      const [row, col] = bestMove;
+      const board = [...currentBoard.map(r => [...r])];
+      
+      // 石を置く
+      board[row][col] = 'white';
+      
+      // 裏返す石を計算して適用
+      const flippedDiscs = getFlippedDiscs(board, row, col, 'white');
+      for (const [r, c] of flippedDiscs) {
+        board[r][c] = 'white';
+      }
+      
+      // 黒と白の石の数を数える
+      let blackCount = 0;
+      let whiteCount = 0;
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          if (board[r][c] === 'black') blackCount++;
+          else if (board[r][c] === 'white') whiteCount++;
+        }
+      }
+      
+      // 次のプレイヤーの合法手をチェック
+      const nextLegalMoves = findLegalMoves(board, 'black');
+      const canNextPlayerMove = nextLegalMoves.length > 0;
+      
+      // 次のプレイヤーが打てない場合、AIが再度打てるかチェック
+      if (!canNextPlayerMove) {
+        const aiCanMove = findLegalMoves(board, 'white').length > 0;
+        
+        // どちらも打てない場合はゲーム終了
+        if (!aiCanMove) {
+          setOthello({
+            board,
+            currentPlayer: 'black',
+            gameOver: true,
+            blackCount,
+            whiteCount,
+            skipTurn: false
+          });
+          return;
+        }
+        
+        // 次のプレイヤーがスキップ
+        setOthello({
+          board,
+          currentPlayer: 'white', // AIの番が続く
+          gameOver: false,
+          blackCount,
+          whiteCount,
+          skipTurn: true
+        });
+        
+        return;
+      }
+      
+      // プレイヤーのターンに戻す
+      setOthello({
+        board,
+        currentPlayer: 'black',
+        gameOver: false,
+        blackCount,
+        whiteCount,
+        skipTurn: false
+      });
     }
-    setShowOthello(!showOthello);
+  };
+
+  // 勝者を判定
+  const checkWinner = (board: Array<string | null>): string | null => {
+    const lines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
+    ];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const [a, b, c] = lines[i];
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+        return board[a];
+      }
+    }
+    
+    return null;
   };
 
   // オセロのボードセルをレンダリング
@@ -869,6 +717,225 @@ export default function MyChatbot() {
     setSelectedModel(e.target.value);
   };
 
+  // マルバツゲームの関数
+  // AIの手を計算（マルバツゲーム）
+  const aiMove = (board: Array<string | null>) => {
+    // 新しいボードを作成（元のボードを変更しないため）
+    const newBoard = [...board];
+    
+    // AIがバツを3つ以上使っている場合
+    if (tictactoe.aiMarks >= 3) {
+      // 既存のバツを動かす必要がある
+      // 勝てる手があるか確認
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          // 既存のバツを動かして試す
+          for (let j = 0; j < 9; j++) {
+            if (newBoard[j] === '×') {
+              // 一時的にマークを移動
+              const testBoard = [...newBoard];
+              testBoard[j] = null;
+              testBoard[i] = '×';
+              
+              // この手で勝てるか確認
+              if (checkWinner(testBoard) === '×') {
+                newBoard[j] = null;
+                newBoard[i] = '×';
+                
+                setTictactoe(prevState => ({
+                  ...prevState,
+                  board: newBoard,
+                  isPlayerTurn: true,
+                  gameOver: true,
+                  winner: '×'
+                }));
+                return;
+              }
+            }
+          }
+        }
+      }
+      
+      // 勝てる手がなければ、防御または良い位置に移動
+      // プレイヤーが次に勝てる手を防ぐ
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          // このマスにプレイヤーが置いた場合
+          const testBoard = [...newBoard];
+          testBoard[i] = '○';
+          
+          if (checkWinner(testBoard) === '○') {
+            // プレイヤーがここに置くと勝つので防ぐ
+            // 既存のバツを移動
+            const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
+            if (firstMarkIndex !== -1) {
+              newBoard[firstMarkIndex] = null;
+              newBoard[i] = '×';
+              
+              setTictactoe(prevState => ({
+                ...prevState,
+                board: newBoard,
+                isPlayerTurn: true,
+                aiMarks: prevState.aiMarks
+              }));
+              return;
+            }
+          }
+        }
+      }
+      
+      // どちらも当てはまらない場合は、最初のバツを良い位置に移動
+      const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
+      // 空いているマスを探す（中央を優先）
+      const emptyIndexes = [];
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          emptyIndexes.push(i);
+        }
+      }
+      
+      // 中央が空いていれば優先
+      if (emptyIndexes.includes(4)) {
+        newBoard[firstMarkIndex] = null;
+        newBoard[4] = '×';
+      } else {
+        // ランダムに選択
+        const randomIndex = emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
+        newBoard[firstMarkIndex] = null;
+        newBoard[randomIndex] = '×';
+      }
+    } else {
+      // AIがバツを3つ未満の場合、新しい位置に置く
+      const bestMove = findBestMove(newBoard, tictactoe.aiMarks);
+      
+      if (bestMove !== -1) {
+        newBoard[bestMove] = '×';
+      }
+    }
+    
+    // 勝敗判定
+    const winner = checkWinner(newBoard);
+    if (winner) {
+      setTictactoe(prevState => ({
+        ...prevState,
+        board: newBoard,
+        isPlayerTurn: true,
+        gameOver: true,
+        winner: winner,
+        aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
+      }));
+      return;
+    }
+    
+    // プレイヤーのターンに戻す
+    setTictactoe(prevState => ({
+      ...prevState,
+      board: newBoard,
+      isPlayerTurn: true,
+      aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
+    }));
+  };
+
+  // マルバツゲームのセルをクリックしたときの処理
+  const handleCellClick = (index: number) => {
+    // すでにマークがあるか、ゲームが終了している場合は何もしない
+    if (tictactoe.board[index] || !tictactoe.isPlayerTurn || tictactoe.gameOver) return;
+    
+    // プレイヤーがマルを3つ以上使っている場合は置けない
+    if (tictactoe.playerMarks >= 3 && !tictactoe.board.includes('○')) return;
+    
+    // 新しいボードを作成
+    const newBoard = [...tictactoe.board];
+    
+    // プレイヤーの手を置く（マルの数をカウント）
+    if (tictactoe.playerMarks < 3 || newBoard.includes('○')) {
+      // 3つ未満の場合、または既存のマルを動かす場合
+      if (tictactoe.playerMarks >= 3) {
+        // 既存のマルを動かす場合は、1つ目のマルを削除
+        const firstMarkIndex = newBoard.findIndex(cell => cell === '○');
+        if (firstMarkIndex !== -1) {
+          newBoard[firstMarkIndex] = null;
+        }
+      }
+      
+      newBoard[index] = '○';
+      
+      // 勝敗判定
+      const winner = checkWinner(newBoard);
+      if (winner) {
+        setTictactoe(prevState => ({
+          ...prevState,
+          board: newBoard,
+          gameOver: true,
+          winner: winner,
+          playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
+        }));
+        return;
+      }
+      
+      // AIのターンに変更
+      setTictactoe(prevState => ({
+        ...prevState,
+        board: newBoard,
+        isPlayerTurn: false,
+        playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
+      }));
+      
+      // useEffectがAIの手を自動的に実行するので、ここでのaiMove呼び出しは不要
+    }
+  };
+
+  // 最適な手を見つける（マルバツゲーム）
+  const findBestMove = (board: Array<string | null>, aiMarksCount: number): number => {
+    // 勝てる手があれば選択
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        const testBoard = [...board];
+        testBoard[i] = '×';
+        if (checkWinner(testBoard) === '×') {
+          return i;
+        }
+      }
+    }
+    
+    // 相手が次に勝てる手を防ぐ
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        const testBoard = [...board];
+        testBoard[i] = '○';
+        if (checkWinner(testBoard) === '○') {
+          return i;
+        }
+      }
+    }
+    
+    // 中央が空いていれば選択
+    if (!board[4]) {
+      return 4;
+    }
+    
+    // 角が空いていれば選択
+    const corners = [0, 2, 6, 8];
+    const emptyCorners = corners.filter(i => !board[i]);
+    if (emptyCorners.length > 0) {
+      return emptyCorners[Math.floor(Math.random() * emptyCorners.length)];
+    }
+    
+    // それ以外の場合は空いているマスをランダムに選択
+    const emptyIndexes = [];
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        emptyIndexes.push(i);
+      }
+    }
+    
+    if (emptyIndexes.length > 0) {
+      return emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
+    }
+    
+    return -1;
+  };
+
   return (
     <div className="container">
       {/* ヘッダー */}
@@ -993,7 +1060,7 @@ export default function MyChatbot() {
             )}
           </div>
         
-          <button className="game-button" onClick={resetOthello}>ゲームをリセット</button>
+          <button className="game-button" onClick={initOthelloBoard}>ゲームをリセット</button>
           <button className="game-button" onClick={toggleOthello}>チャットに戻る</button>
         </div>
       ) : showGame ? (
@@ -1034,6 +1101,7 @@ export default function MyChatbot() {
           </div>
         
           <button className="game-button" onClick={resetGame}>ゲームをリセット</button>
+          <button className="game-button" onClick={toggleGame}>チャットに戻る</button>
         </div>
       ) : (
         <>
