@@ -198,23 +198,23 @@ export default function MyChatbot() {
       // 勝敗判定
       const winner = checkWinner(newBoard);
       if (winner) {
-        setTictactoe({
-          ...tictactoe,
+        setTictactoe(prevState => ({
+          ...prevState,
           board: newBoard,
           gameOver: true,
           winner: winner,
-          playerMarks: tictactoe.playerMarks < 3 ? tictactoe.playerMarks + 1 : tictactoe.playerMarks
-        });
+          playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
+        }));
         return;
       }
       
       // AIのターンに変更
-      setTictactoe({
-        ...tictactoe,
+      setTictactoe(prevState => ({
+        ...prevState,
         board: newBoard,
         isPlayerTurn: false,
-        playerMarks: tictactoe.playerMarks < 3 ? tictactoe.playerMarks + 1 : tictactoe.playerMarks
-      });
+        playerMarks: prevState.playerMarks < 3 ? prevState.playerMarks + 1 : prevState.playerMarks
+      }));
       
       // AIの手を計算
       setTimeout(() => aiMove(newBoard), 700);
@@ -247,13 +247,13 @@ export default function MyChatbot() {
                 newBoard[j] = null;
                 newBoard[i] = '×';
                 
-                setTictactoe({
-                  ...tictactoe,
+                setTictactoe(prevState => ({
+                  ...prevState,
                   board: newBoard,
                   isPlayerTurn: true,
                   gameOver: true,
                   winner: '×'
-                });
+                }));
                 return;
               }
             }
@@ -277,12 +277,12 @@ export default function MyChatbot() {
               newBoard[firstMarkIndex] = null;
               newBoard[i] = '×';
               
-              setTictactoe({
-                ...tictactoe,
+              setTictactoe(prevState => ({
+                ...prevState,
                 board: newBoard,
                 isPlayerTurn: true,
-                aiMarks: tictactoe.aiMarks
-              });
+                aiMarks: prevState.aiMarks
+              }));
               return;
             }
           }
@@ -321,24 +321,24 @@ export default function MyChatbot() {
     // 勝敗判定
     const winner = checkWinner(newBoard);
     if (winner) {
-      setTictactoe({
-        ...tictactoe,
+      setTictactoe(prevState => ({
+        ...prevState,
         board: newBoard,
         isPlayerTurn: true,
         gameOver: true,
         winner: winner,
-        aiMarks: tictactoe.aiMarks < 3 ? tictactoe.aiMarks + 1 : tictactoe.aiMarks
-      });
+        aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
+      }));
       return;
     }
     
     // プレイヤーのターンに戻す
-    setTictactoe({
-      ...tictactoe,
+    setTictactoe(prevState => ({
+      ...prevState,
       board: newBoard,
       isPlayerTurn: true,
-      aiMarks: tictactoe.aiMarks < 3 ? tictactoe.aiMarks + 1 : tictactoe.aiMarks
-    });
+      aiMarks: prevState.aiMarks < 3 ? prevState.aiMarks + 1 : prevState.aiMarks
+    }));
   };
 
   // 最適な手を見つける
@@ -432,28 +432,30 @@ export default function MyChatbot() {
     // AIが先行で打つため、少し遅延させてAIの手を実行
     setTimeout(() => {
       if (!showGame) return; // ゲームが表示されていない場合は実行しない
-      const newBoard = [...newState.board];
+      const newBoard = [...Array(9).fill(null)]; // 新しい配列を作成
       // 最初の手は中央か角を選ぶ
       const firstMoves = [0, 2, 4, 6, 8];
       const firstMove = firstMoves[Math.floor(Math.random() * firstMoves.length)];
       newBoard[firstMove] = '×';
       
-      setTictactoe({
-        ...newState,
+      setTictactoe(prevState => ({
+        ...prevState,
         board: newBoard,
         isPlayerTurn: true, // プレイヤーのターンに変更
         aiMarks: 1 // AIのマークを1つ増やす
-      });
+      }));
     }, 800);
   };
   
   // ゲーム表示切り替え
   const toggleGame = () => {
     if (!showGame) {
-      resetGame();
-      setShowOthello(false);
+      setShowGame(true); // 先にゲーム表示状態を更新
+      setTimeout(() => resetGame(), 100); // 少し遅延させてからリセット処理を行う
+    } else {
+      setShowGame(false);
     }
-    setShowGame(!showGame);
+    setShowOthello(false);
   };
 
   // オセロゲームの初期化
