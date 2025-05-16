@@ -417,14 +417,34 @@ export default function MyChatbot() {
 
   // ゲームをリセット
   const resetGame = () => {
-    setTictactoe({
+    // ゲームの状態を初期化
+    const newState: TicTacToeState = {
       board: Array(9).fill(null),
-      isPlayerTurn: true,
+      isPlayerTurn: false, // AIが先手になるようfalseに設定
       gameOver: false,
       winner: null,
       playerMarks: 0,
       aiMarks: 0
-    });
+    };
+    
+    setTictactoe(newState);
+    
+    // AIが先行で打つため、少し遅延させてAIの手を実行
+    setTimeout(() => {
+      if (!showGame) return; // ゲームが表示されていない場合は実行しない
+      const newBoard = [...newState.board];
+      // 最初の手は中央か角を選ぶ
+      const firstMoves = [0, 2, 4, 6, 8];
+      const firstMove = firstMoves[Math.floor(Math.random() * firstMoves.length)];
+      newBoard[firstMove] = '×';
+      
+      setTictactoe({
+        ...newState,
+        board: newBoard,
+        isPlayerTurn: true, // プレイヤーのターンに変更
+        aiMarks: 1 // AIのマークを1つ増やす
+      });
+    }, 800);
   };
   
   // ゲーム表示切り替え
@@ -761,7 +781,7 @@ export default function MyChatbot() {
       const newMessages: Message[] = [
         ...messages, 
         { role: "user", content: input },
-        { role: "assistant", content: "マルバツゲームを始めるよ！君は○、俺は×。先攻後攻あるけど、まあ先攻でいいよ。それぞれ3つまでしか置けないから、戦略的に配置してみて。" }
+        { role: "assistant", content: "マルバツゲームを始めるよ！君は○、俺は×。先攻は俺がやるね。それぞれ3つまでしか置けないから、戦略的に配置してみて。" }
       ];
       setMessages(newMessages);
       setInput("");
