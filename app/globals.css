@@ -424,3 +424,117 @@ body {
     max-width: 85%;
   }
 }
+
+/* マルバツゲーム用のスタイル */
+.game-container {
+  backdrop-filter: blur(8px);
+  background-color: var(--card-bg);
+  border-radius: 1rem;
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.game-status {
+  text-align: center;
+  width: 100%;
+}
+
+.game-result {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--foreground);
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient 3s ease infinite;
+  background-size: 200% auto;
+}
+
+.turn-indicator {
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.mark-counts {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-top: 0.5rem;
+}
+
+.mark-count {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-gap: 0.5rem;
+  width: 300px;
+  height: 300px;
+}
+
+.game-cell {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--foreground);
+  aspect-ratio: 1;
+}
+
+.dark .game-cell {
+  background-color: rgba(31, 41, 55, 0.4);
+}
+
+.game-cell:hover:not(.marked) {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.game-cell.marked {
+  cursor: default;
+}
+
+.game-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(to right, #3b82f6, #4f46e5);
+  color: white;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.game-button:hover {
+  background: linear-gradient(to right, #2563eb, #4338ca);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 400px) {
+  .game-board {
+    width: 100%;
+    height: auto;
+  }
+  
+  .game-cell {
+    font-size: 2rem;
+  }
+}

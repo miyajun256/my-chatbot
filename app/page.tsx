@@ -16,6 +16,16 @@ interface ModelOption {
   name: string;
 }
 
+// マルバツゲームの状態を表す型
+interface TicTacToeState {
+  board: Array<string | null>;
+  isPlayerTurn: boolean;
+  gameOver: boolean;
+  winner: string | null;
+  playerMarks: number;
+  aiMarks: number;
+}
+
 export default function MyChatbot() {
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "よう。何か聞きたいことある？" }]);
   const [input, setInput] = useState("");
@@ -26,6 +36,17 @@ export default function MyChatbot() {
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // マルバツゲームの状態
+  const [showGame, setShowGame] = useState(false);
+  const [tictactoe, setTictactoe] = useState<TicTacToeState>({
+    board: Array(9).fill(null),
+    isPlayerTurn: true,
+    gameOver: false,
+    winner: null,
+    playerMarks: 0,
+    aiMarks: 0
+  });
 
   // モデル一覧を取得
   useEffect(() => {
@@ -129,9 +150,291 @@ export default function MyChatbot() {
     return "";
   };
 
+  // マルバツゲームの関数
+  const handleCellClick = (index: number) => {
+    // すでにマークがあるか、ゲームが終了している場合は何もしない
+    if (tictactoe.board[index] || !tictactoe.isPlayerTurn || tictactoe.gameOver) return;
+    
+    // プレイヤーがマルを3つ以上使っている場合は置けない
+    if (tictactoe.playerMarks >= 3 && !tictactoe.board.includes('○')) return;
+    
+    // 新しいボードを作成
+    const newBoard = [...tictactoe.board];
+    
+    // プレイヤーの手を置く（マルの数をカウント）
+    if (tictactoe.playerMarks < 3 || newBoard.includes('○')) {
+      // 3つ未満の場合、または既存のマルを動かす場合
+      if (tictactoe.playerMarks >= 3) {
+        // 既存のマルを動かす場合は、1つ目のマルを削除
+        const firstMarkIndex = newBoard.findIndex(cell => cell === '○');
+        if (firstMarkIndex !== -1) {
+          newBoard[firstMarkIndex] = null;
+        }
+      }
+      
+      newBoard[index] = '○';
+      
+      // 勝敗判定
+      const winner = checkWinner(newBoard);
+      if (winner) {
+        setTictactoe({
+          ...tictactoe,
+          board: newBoard,
+          gameOver: true,
+          winner: winner,
+          playerMarks: tictactoe.playerMarks < 3 ? tictactoe.playerMarks + 1 : tictactoe.playerMarks
+        });
+        return;
+      }
+      
+      // AIのターンに変更
+      setTictactoe({
+        ...tictactoe,
+        board: newBoard,
+        isPlayerTurn: false,
+        playerMarks: tictactoe.playerMarks < 3 ? tictactoe.playerMarks + 1 : tictactoe.playerMarks
+      });
+      
+      // AIの手を計算
+      setTimeout(() => aiMove(newBoard), 700);
+    }
+  };
+
+  // AIの手を計算
+  const aiMove = (board: Array<string | null>) => {
+    // すでにゲームが終了している場合は何もしない
+    if (tictactoe.gameOver) return;
+    
+    const newBoard = [...board];
+    
+    // AIがバツを3つ以上使っている場合
+    if (tictactoe.aiMarks >= 3) {
+      // 既存のバツを動かす必要がある
+      // 勝てる手があるか確認
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          // 既存のバツを動かして試す
+          for (let j = 0; j < 9; j++) {
+            if (newBoard[j] === '×') {
+              // 一時的にマークを移動
+              const testBoard = [...newBoard];
+              testBoard[j] = null;
+              testBoard[i] = '×';
+              
+              // この手で勝てるか確認
+              if (checkWinner(testBoard) === '×') {
+                newBoard[j] = null;
+                newBoard[i] = '×';
+                
+                setTictactoe({
+                  ...tictactoe,
+                  board: newBoard,
+                  isPlayerTurn: true,
+                  gameOver: true,
+                  winner: '×'
+                });
+                return;
+              }
+            }
+          }
+        }
+      }
+      
+      // 勝てる手がなければ、防御または良い位置に移動
+      // プレイヤーが次に勝てる手を防ぐ
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          // このマスにプレイヤーが置いた場合
+          const testBoard = [...newBoard];
+          testBoard[i] = '○';
+          
+          if (checkWinner(testBoard) === '○') {
+            // プレイヤーがここに置くと勝つので防ぐ
+            // 既存のバツを移動
+            const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
+            if (firstMarkIndex !== -1) {
+              newBoard[firstMarkIndex] = null;
+              newBoard[i] = '×';
+              
+              setTictactoe({
+                ...tictactoe,
+                board: newBoard,
+                isPlayerTurn: true,
+                aiMarks: tictactoe.aiMarks
+              });
+              return;
+            }
+          }
+        }
+      }
+      
+      // どちらも当てはまらない場合は、最初のバツを良い位置に移動
+      const firstMarkIndex = newBoard.findIndex(cell => cell === '×');
+      // 空いているマスを探す（中央を優先）
+      const emptyIndexes = [];
+      for (let i = 0; i < 9; i++) {
+        if (!newBoard[i]) {
+          emptyIndexes.push(i);
+        }
+      }
+      
+      // 中央が空いていれば優先
+      if (emptyIndexes.includes(4)) {
+        newBoard[firstMarkIndex] = null;
+        newBoard[4] = '×';
+      } else {
+        // ランダムに選択
+        const randomIndex = emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
+        newBoard[firstMarkIndex] = null;
+        newBoard[randomIndex] = '×';
+      }
+    } else {
+      // AIがバツを3つ未満の場合、新しい位置に置く
+      const bestMove = findBestMove(newBoard, tictactoe.aiMarks);
+      
+      if (bestMove !== -1) {
+        newBoard[bestMove] = '×';
+      }
+    }
+    
+    // 勝敗判定
+    const winner = checkWinner(newBoard);
+    if (winner) {
+      setTictactoe({
+        ...tictactoe,
+        board: newBoard,
+        isPlayerTurn: true,
+        gameOver: true,
+        winner: winner,
+        aiMarks: tictactoe.aiMarks < 3 ? tictactoe.aiMarks + 1 : tictactoe.aiMarks
+      });
+      return;
+    }
+    
+    // プレイヤーのターンに戻す
+    setTictactoe({
+      ...tictactoe,
+      board: newBoard,
+      isPlayerTurn: true,
+      aiMarks: tictactoe.aiMarks < 3 ? tictactoe.aiMarks + 1 : tictactoe.aiMarks
+    });
+  };
+
+  // 最適な手を見つける
+  const findBestMove = (board: Array<string | null>, aiMarksCount: number): number => {
+    // 勝てる手があれば選択
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        const testBoard = [...board];
+        testBoard[i] = '×';
+        if (checkWinner(testBoard) === '×') {
+          return i;
+        }
+      }
+    }
+    
+    // 相手が次に勝てる手を防ぐ
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        const testBoard = [...board];
+        testBoard[i] = '○';
+        if (checkWinner(testBoard) === '○') {
+          return i;
+        }
+      }
+    }
+    
+    // 中央が空いていれば選択
+    if (!board[4]) {
+      return 4;
+    }
+    
+    // 角が空いていれば選択
+    const corners = [0, 2, 6, 8];
+    const emptyCorners = corners.filter(i => !board[i]);
+    if (emptyCorners.length > 0) {
+      return emptyCorners[Math.floor(Math.random() * emptyCorners.length)];
+    }
+    
+    // それ以外の場合は空いているマスをランダムに選択
+    const emptyIndexes = [];
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        emptyIndexes.push(i);
+      }
+    }
+    
+    if (emptyIndexes.length > 0) {
+      return emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
+    }
+    
+    return -1;
+  };
+
+  // 勝者を判定
+  const checkWinner = (board: Array<string | null>): string | null => {
+    const lines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
+    ];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const [a, b, c] = lines[i];
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+        return board[a];
+      }
+    }
+    
+    return null;
+  };
+
+  // ゲームをリセット
+  const resetGame = () => {
+    setTictactoe({
+      board: Array(9).fill(null),
+      isPlayerTurn: true,
+      gameOver: false,
+      winner: null,
+      playerMarks: 0,
+      aiMarks: 0
+    });
+  };
+  
+  // ゲーム表示切り替え
+  const toggleGame = () => {
+    if (!showGame) {
+      resetGame();
+    }
+    setShowGame(!showGame);
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
     setError(null);
+    
+    // マルバツゲームの起動コマンド
+    if (input.trim().toLowerCase() === 'まるばつ' || 
+        input.trim().toLowerCase() === 'マルバツ' || 
+        input.trim().toLowerCase() === 'tic tac toe' || 
+        input.trim().toLowerCase() === 'まるばつゲーム' || 
+        input.trim().toLowerCase() === 'マルバツゲーム') {
+      const newMessages: Message[] = [
+        ...messages, 
+        { role: "user", content: input },
+        { role: "assistant", content: "マルバツゲームを始めるよ！君は○、俺は×。先攻後攻あるけど、まあ先攻でいいよ。それぞれ3つまでしか置けないから、戦略的に配置してみて。" }
+      ];
+      setMessages(newMessages);
+      setInput("");
+      toggleGame();
+      return;
+    }
+    
     const newMessages: Message[] = [...messages, { role: "user", content: input }];
     setMessages(newMessages);
     setInput("");
@@ -203,6 +506,10 @@ export default function MyChatbot() {
             <h1 className="title">俺っぽいAI</h1>
           </div>
           <div className="button-group">
+            <button className="button" onClick={toggleGame}>
+              <span>{showGame ? "💬" : "🎮"}</span>
+              <span>{showGame ? "チャット" : "マルバツ"}</span>
+            </button>
             <button className="button" onClick={toggleDarkMode}>
               <span>{darkMode ? "🌞" : "🌙"}</span>
               <span>{darkMode ? "ライト" : "ダーク"}</span>
@@ -278,67 +585,110 @@ export default function MyChatbot() {
         </div>
       )}
       
-      {/* チャットウィンドウ */}
-      <div className="chat-window">
-        <div className="messages">
-          {messages.map((msg, i) => (
-            <div 
-              key={i} 
-              className={`message ${msg.role}`}
-            >
-              <div className="message-bubble">
-                <div className="message-text">{msg.content}</div>
+      {showGame ? (
+        /* マルバツゲーム */
+        <div className="game-container">
+          <div className="game-status">
+            {tictactoe.gameOver ? (
+              <div className="game-result">
+                {tictactoe.winner === '○' ? 
+                  '🎉 おめでとう！君の勝ちだ！' : 
+                  tictactoe.winner === '×' ? 
+                  '😎 俺の勝ち！次は頑張れよ？' : 
+                  '😯 引き分けだな'}
               </div>
+            ) : (
+              <div className="turn-indicator">
+                {tictactoe.isPlayerTurn ? 
+                  `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- マークを動かそう' : ''}` : 
+                  '俺のターン (×)...'}
+              </div>
+            )}
+            <div className="mark-counts">
+              <div className="mark-count">あなた: {tictactoe.playerMarks}/3 個</div>
+              <div className="mark-count">AI: {tictactoe.aiMarks}/3 個</div>
             </div>
-          ))}
-          
-          {loading && (
-            <div className="message assistant">
-              <div className="message-bubble">
-                <div className="loading-dots">
-                  <span className="loading-text">考え中</span>
-                  <div className="dots-container">
-                    <span className="dot dot-1"></span>
-                    <span className="dot dot-2"></span>
-                    <span className="dot dot-3"></span>
+          </div>
+        
+          <div className="game-board">
+            {tictactoe.board.map((cell, index) => (
+              <div 
+                key={index} 
+                className={`game-cell ${cell ? 'marked' : ''}`}
+                onClick={() => handleCellClick(index)}
+              >
+                {cell}
+              </div>
+            ))}
+          </div>
+        
+          <button className="game-button" onClick={resetGame}>ゲームをリセット</button>
+        </div>
+      ) : (
+        <>
+          {/* チャットウィンドウ */}
+          <div className="chat-window">
+            <div className="messages">
+              {messages.map((msg, i) => (
+                <div 
+                  key={i} 
+                  className={`message ${msg.role}`}
+                >
+                  <div className="message-bubble">
+                    <div className="message-text">{msg.content}</div>
                   </div>
                 </div>
-              </div>
+              ))}
+              
+              {loading && (
+                <div className="message assistant">
+                  <div className="message-bubble">
+                    <div className="loading-dots">
+                      <span className="loading-text">考え中</span>
+                      <div className="dots-container">
+                        <span className="dot dot-1"></span>
+                        <span className="dot dot-2"></span>
+                        <span className="dot dot-3"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
             </div>
-          )}
+          </div>
           
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-      
-      {/* 入力エリア */}
-      <div className="input-area">
-        <textarea
-          className="message-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          rows={2}
-          placeholder="メッセージを入力..."
-          disabled={loading}
-        />
-        <button 
-          className="send-button"
-          onClick={sendMessage}
-          disabled={loading}
-        >
-          {loading ? (
-            <span>送信中...</span>
-          ) : (
-            <span style={{ display: 'flex', alignItems: 'center' }}>
-              <span>送信</span>
-              <svg className="send-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </span>
-          )}
-        </button>
-      </div>
+          {/* 入力エリア */}
+          <div className="input-area">
+            <textarea
+              className="message-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              rows={2}
+              placeholder="メッセージを入力...「マルバツ」と入力するとゲームが始まるよ"
+              disabled={loading}
+            />
+            <button 
+              className="send-button"
+              onClick={sendMessage}
+              disabled={loading}
+            >
+              {loading ? (
+                <span>送信中...</span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  <span>送信</span>
+                  <svg className="send-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </span>
+              )}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
