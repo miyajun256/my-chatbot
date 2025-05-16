@@ -753,10 +753,14 @@ export default function MyChatbot() {
         input.trim().toLowerCase() === 'tic tac toe' || 
         input.trim().toLowerCase() === 'まるばつゲーム' || 
         input.trim().toLowerCase() === 'マルバツゲーム') {
+      const gameMessage = darkMode 
+        ? "マルバツゲームか...まあいいけど。君は○、俺は×。先攻は俺。3つまでしか置けないから頭使え。" 
+        : "マルバツゲームを始めるよ！君は○、俺は×。先攻は俺がやるね。それぞれ3つまでしか置けないから、戦略的に配置してみて。";
+      
       const newMessages: Message[] = [
         ...messages, 
         { role: "user", content: input },
-        { role: "assistant", content: "マルバツゲームを始めるよ！君は○、俺は×。先攻は俺がやるね。それぞれ3つまでしか置けないから、戦略的に配置してみて。" }
+        { role: "assistant", content: gameMessage }
       ];
       setMessages(newMessages);
       setInput("");
@@ -770,10 +774,14 @@ export default function MyChatbot() {
         input.trim().toLowerCase() === 'othello' || 
         input.trim().toLowerCase() === 'オセロゲーム' || 
         input.trim().toLowerCase() === 'おせろゲーム') {
+      const gameMessage = darkMode
+        ? "オセロか...暇つぶしにはなるか。黒が君で、白が俺。6×6の盤面。多く取った方が勝ち。緑のマスに置けるからそこ押せ。" 
+        : "オセロを始めよう！君は黒、俺は白で6×6の盤面で対戦するよ。石は多い方が勝ちだ。緑色のマスに石を置けるからクリックしてみて。";
+      
       const newMessages: Message[] = [
         ...messages, 
         { role: "user", content: input },
-        { role: "assistant", content: "オセロを始めよう！君は黒、俺は白で6×6の盤面で対戦するよ。石は多い方が勝ちだ。緑色のマスに石を置けるからクリックしてみて。" }
+        { role: "assistant", content: gameMessage }
       ];
       setMessages(newMessages);
       setInput("");
@@ -792,7 +800,8 @@ export default function MyChatbot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           messages: newMessages,
-          model: selectedModel 
+          model: selectedModel,
+          darkMode: darkMode  // ダークモードの状態を送信
         }),
       });
       
@@ -809,7 +818,9 @@ export default function MyChatbot() {
       // エラーメッセージをアシスタントのメッセージとして追加
       setMessages([...newMessages, { 
         role: "assistant", 
-        content: "すみません、エラーが発生しました。しばらく待ってからもう一度試してみてください。" 
+        content: darkMode 
+          ? "はぁ...エラーが出た。後でもう一度試せ。" 
+          : "すみません、エラーが発生しました。しばらく待ってからもう一度試してみてください。" 
       }]);
     } finally {
       setLoading(false);
@@ -818,7 +829,12 @@ export default function MyChatbot() {
 
   // 会話履歴をクリアする
   const clearChat = () => {
-    const initialMessage: Message[] = [{ role: "assistant", content: "よう。また話そうぜ。何か聞きたいことある？" }];
+    const initialMessage: Message[] = [{ 
+      role: "assistant", 
+      content: darkMode 
+        ? "よう。また話すのか。何か用？" 
+        : "よう。また話そうぜ。何か聞きたいことある？" 
+    }];
     setMessages(initialMessage);
     localStorage.setItem("chatHistory", JSON.stringify(initialMessage));
     setError(null);
@@ -1345,10 +1361,16 @@ export default function MyChatbot() {
             {othello.gameOver ? (
               <div className="game-result">
                 {othello.blackCount > othello.whiteCount
-                  ? '🎉 おめでとう！君の勝ちだ！'
+                  ? darkMode 
+                    ? '勝ったな。運がよかっただけだろうけど。' 
+                    : '🎉 おめでとう！君の勝ちだ！'
                   : othello.blackCount < othello.whiteCount
-                  ? '😎 俺の勝ち！次は頑張れよ？'
-                  : '😯 引き分けだな'}
+                  ? darkMode 
+                    ? 'はいはい、俺の勝ち。まあ当然な。' 
+                    : '😎 俺の勝ち！次は頑張れよ？'
+                  : darkMode 
+                    ? '引き分けか...まあどうでもいいけど。' 
+                    : '😯 引き分けだな'}
               </div>
             ) : (
               <div className="turn-indicator">
@@ -1379,16 +1401,26 @@ export default function MyChatbot() {
             {tictactoe.gameOver ? (
               <div className="game-result">
                 {tictactoe.winner === '○' ? 
-                  '🎉 おめでとう！君の勝ちだ！' : 
-                  tictactoe.winner === '×' ? 
-                  '😎 俺の勝ち！次は頑張れよ？' : 
-                  '😯 引き分けだな'}
+                  darkMode 
+                    ? 'ふん、まぐれで勝ったな。' 
+                    : '🎉 おめでとう！君の勝ちだ！' 
+                  : tictactoe.winner === '×' ? 
+                  darkMode 
+                    ? '負けたか。まあ俺には勝てないよな。' 
+                    : '😎 俺の勝ち！次は頑張れよ？' 
+                  : darkMode 
+                    ? '引き分け...つまらん。' 
+                    : '😯 引き分けだな'}
               </div>
             ) : (
               <div className="turn-indicator">
                 {tictactoe.isPlayerTurn ? 
-                  `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- マークを動かそう' : ''}` : 
-                  '俺のターン (×)...'}
+                  darkMode
+                    ? `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- 動かせ。' : ''}` 
+                    : `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- マークを動かそう' : ''}` 
+                  : darkMode
+                    ? '俺のターン (×)...ちょっと待て。' 
+                    : '俺のターン (×)...'}
               </div>
             )}
             <div className="mark-counts">
