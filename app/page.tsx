@@ -26,6 +26,16 @@ interface TicTacToeState {
   aiMarks: number;
 }
 
+// オセロゲームの状態を表す型
+interface OthelloState {
+  board: string[][];
+  currentPlayer: 'black' | 'white';
+  gameOver: boolean;
+  blackCount: number;
+  whiteCount: number;
+  skipTurn: boolean;
+}
+
 export default function MyChatbot() {
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "よう。何か聞きたいことある？" }]);
   const [input, setInput] = useState("");
@@ -46,6 +56,17 @@ export default function MyChatbot() {
     winner: null,
     playerMarks: 0,
     aiMarks: 0
+  });
+  
+  // オセロゲームの状態
+  const [showOthello, setShowOthello] = useState(false);
+  const [othello, setOthello] = useState<OthelloState>({
+    board: Array(6).fill(null).map(() => Array(6).fill('')),
+    currentPlayer: 'black',
+    gameOver: false,
+    blackCount: 0,
+    whiteCount: 0,
+    skipTurn: false
   });
 
   // モデル一覧を取得
@@ -410,9 +431,322 @@ export default function MyChatbot() {
   const toggleGame = () => {
     if (!showGame) {
       resetGame();
+      setShowOthello(false);
     }
     setShowGame(!showGame);
   };
+
+  // オセロゲームの初期化
+  const initOthelloBoard = () => {
+    // 6x6の盤面を作成
+    const newBoard = Array(6).fill(null).map(() => Array(6).fill(''));
+    
+    // 初期配置 (中央に4つの石を配置)
+    const mid = Math.floor(6 / 2) - 1;
+    newBoard[mid][mid] = 'white';
+    newBoard[mid][mid + 1] = 'black';
+    newBoard[mid + 1][mid] = 'black';
+    newBoard[mid + 1][mid + 1] = 'white';
+    
+    // 打てる場所を計算
+    const legalMoves = findLegalMoves(newBoard, 'black');
+    
+    // 初期状態をセット
+    setOthello({
+      board: newBoard,
+      currentPlayer: 'black',
+      gameOver: false,
+      blackCount: 2,
+      whiteCount: 2,
+      skipTurn: legalMoves.length === 0
+    });
+  };
+  
+  // 合法手を見つける
+  const findLegalMoves = (board: string[][], player: 'black' | 'white'): [number, number][] => {
+    const opponent = player === 'black' ? 'white' : 'black';
+    const legalMoves: [number, number][] = [];
+    
+    // すべてのマスをチェック
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 6; col++) {
+        // 空のマスのみ調査
+        if (board[row][col] !== '') continue;
+        
+        // 8方向チェック
+        const directions = [
+          [-1, -1], [-1, 0], [-1, 1],
+          [0, -1],           [0, 1],
+          [1, -1],  [1, 0],  [1, 1]
+        ];
+        
+        // いずれかの方向で石が裏返せるかチェック
+        for (const [dx, dy] of directions) {
+          let r = row + dx;
+          let c = col + dy;
+          let foundOpponent = false;
+          
+          // 盤面の範囲内で相手の石が続くかチェック
+          while (r >= 0 && r < 6 && c >= 0 && c < 6 && board[r][c] === opponent) {
+            r += dx;
+            c += dy;
+            foundOpponent = true;
+          }
+          
+          // 相手の石の先に自分の石があるかチェック
+          if (foundOpponent && r >= 0 && r < 6 && c >= 0 && c < 6 && board[r][c] === player) {
+            legalMoves.push([row, col]);
+            break; // この位置は合法手なのでループを抜ける
+          }
+        }
+      }
+    }
+    
+    return legalMoves;
+  };
+  
+  // 石を置いたときに裏返る石を計算
+  const getFlippedDiscs = (board: string[][], row: number, col: number, player: 'black' | 'white'): [number, number][] => {
+    const opponent = player === 'black' ? 'white' : 'black';
+    const flipped: [number, number][] = [];
+    
+    // 8方向チェック
+    const directions = [
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],           [0, 1],
+      [1, -1],  [1, 0],  [1, 1]
+    ];
+    
+    for (const [dx, dy] of directions) {
+      const tempFlipped: [number, number][] = [];
+      let r = row + dx;
+      let c = col + dy;
+      
+      // 盤面の範囲内で相手の石が続くかチェック
+      while (r >= 0 && r < 6 && c >= 0 && c < 6 && board[r][c] === opponent) {
+        tempFlipped.push([r, c]);
+        r += dx;
+        c += dy;
+      }
+      
+      // 相手の石の先に自分の石があるかチェック
+      if (tempFlipped.length > 0 && r >= 0 && r < 6 && c >= 0 && c < 6 && board[r][c] === player) {
+        flipped.push(...tempFlipped);
+      }
+    }
+    
+    return flipped;
+  };
+  
+  // オセロの石を置く
+  const placeDisc = (row: number, col: number) => {
+    // ゲーム終了時またはすでに石がある場合は何もしない
+    if (othello.gameOver || othello.board[row][col] !== '') return;
+    
+    // 現在のプレイヤー
+    const currentPlayer = othello.currentPlayer;
+    const board = [...othello.board.map(row => [...row])];
+    
+    // この位置が合法手かチェック
+    const legalMoves = findLegalMoves(board, currentPlayer);
+    const isLegalMove = legalMoves.some(([r, c]) => r === row && c === col);
+    
+    if (!isLegalMove) return;
+    
+    // 石を置く
+    board[row][col] = currentPlayer;
+    
+    // 裏返す石を計算して適用
+    const flippedDiscs = getFlippedDiscs(board, row, col, currentPlayer);
+    for (const [r, c] of flippedDiscs) {
+      board[r][c] = currentPlayer;
+    }
+    
+    // 黒と白の石の数を数える
+    let blackCount = 0;
+    let whiteCount = 0;
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 6; c++) {
+        if (board[r][c] === 'black') blackCount++;
+        else if (board[r][c] === 'white') whiteCount++;
+      }
+    }
+    
+    // 次のプレイヤー
+    const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    
+    // 次のプレイヤーの合法手をチェック
+    const nextLegalMoves = findLegalMoves(board, nextPlayer);
+    const canNextPlayerMove = nextLegalMoves.length > 0;
+    
+    // 次のプレイヤーが打てない場合、現在のプレイヤーが再度打てるかチェック
+    if (!canNextPlayerMove) {
+      const currentPlayerCanMove = findLegalMoves(board, currentPlayer).length > 0;
+      
+      // どちらも打てない場合はゲーム終了
+      if (!currentPlayerCanMove) {
+        setOthello({
+          board,
+          currentPlayer: nextPlayer,
+          gameOver: true,
+          blackCount,
+          whiteCount,
+          skipTurn: false
+        });
+        return;
+      }
+      
+      // 次のプレイヤーがスキップ
+      setOthello({
+        board,
+        currentPlayer: currentPlayer, // 同じプレイヤーのターン
+        gameOver: false,
+        blackCount,
+        whiteCount,
+        skipTurn: true
+      });
+      
+      return;
+    }
+    
+    // プレイヤーがwhiteの場合、次はAIの手番
+    setOthello({
+      board,
+      currentPlayer: nextPlayer,
+      gameOver: false,
+      blackCount,
+      whiteCount,
+      skipTurn: false
+    });
+    
+    // AIのターンの場合、少し遅延させてAIの手を実行
+    if (nextPlayer === 'white') {
+      setTimeout(() => makeAIMove(board), 800);
+    }
+  };
+  
+  // AIの手を計算
+  const makeAIMove = (currentBoard: string[][]) => {
+    // ゲームがすでに終了している場合は何もしない
+    if (othello.gameOver) return;
+    
+    // 合法手を見つける
+    const legalMoves = findLegalMoves(currentBoard, 'white');
+    
+    if (legalMoves.length === 0) {
+      // AIが打てない場合、プレイヤーが打てるかチェック
+      const playerCanMove = findLegalMoves(currentBoard, 'black').length > 0;
+      
+      if (!playerCanMove) {
+        // どちらも打てない場合はゲーム終了
+        setOthello({
+          ...othello,
+          gameOver: true
+        });
+      } else {
+        // AIがスキップしてプレイヤーのターンに戻る
+        setOthello({
+          ...othello,
+          currentPlayer: 'black',
+          skipTurn: true
+        });
+      }
+      return;
+    }
+    
+    // 簡単な評価関数：裏返せる石の数が最も多い手を選ぶ
+    let bestScore = -1;
+    let bestMove: [number, number] = [-1, -1];
+    
+    // 隅を優先して取る戦略
+    const cornerMoves = legalMoves.filter(([r, c]) => 
+      (r === 0 && c === 0) || (r === 0 && c === 5) || 
+      (r === 5 && c === 0) || (r === 5 && c === 5)
+    );
+    
+    if (cornerMoves.length > 0) {
+      // ランダムに隅を選択
+      bestMove = cornerMoves[Math.floor(Math.random() * cornerMoves.length)];
+    } else {
+      // 隅がない場合は裏返せる石の数が多い手を選ぶ
+      for (const [row, col] of legalMoves) {
+        const flipped = getFlippedDiscs(currentBoard, row, col, 'white');
+        
+        // 特定の位置に重みを与える（辺を優先）
+        let score = flipped.length;
+        
+        // 辺の位置にボーナス
+        if (row === 0 || row === 5 || col === 0 || col === 5) {
+          score += 2;
+        }
+        
+        // 隅の隣は避ける
+        if ((row === 0 && col === 1) || (row === 1 && col === 0) || 
+            (row === 0 && col === 4) || (row === 1 && col === 5) || 
+            (row === 4 && col === 0) || (row === 5 && col === 1) || 
+            (row === 4 && col === 5) || (row === 5 && col === 4)) {
+          score -= 1;
+        }
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = [row, col];
+        }
+      }
+      
+      // 良い手が見つからない場合はランダム選択
+      if (bestMove[0] === -1) {
+        bestMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      }
+    }
+    
+    // 石を置く
+    placeDisc(bestMove[0], bestMove[1]);
+  };
+  
+  // オセロゲームをリセット
+  const resetOthello = () => {
+    initOthelloBoard();
+  };
+  
+  // ゲーム切り替え
+  const toggleOthello = () => {
+    if (!showOthello) {
+      resetOthello();
+      setShowGame(false);
+    }
+    setShowOthello(!showOthello);
+  };
+
+  // オセロのボードセルをレンダリング
+  const renderOthelloCell = (row: number, col: number) => {
+    const cell = othello.board[row][col];
+    const isLegalMove = 
+      !othello.gameOver && 
+      othello.currentPlayer === 'black' && 
+      cell === '' && 
+      findLegalMoves(othello.board, 'black').some(([r, c]) => r === row && c === col);
+    
+    return (
+      <div 
+        key={`${row}-${col}`} 
+        className={`othello-cell ${isLegalMove ? 'legal-move' : ''}`}
+        onClick={() => isLegalMove ? placeDisc(row, col) : null}
+      >
+        {cell !== '' && (
+          <div className={`othello-disc ${cell}`}></div>
+        )}
+        {isLegalMove && <div className="legal-move-indicator"></div>}
+      </div>
+    );
+  };
+
+  // useEffect for Othello initialization
+  useEffect(() => {
+    if (showOthello) {
+      initOthelloBoard();
+    }
+  }, [showOthello]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -432,6 +766,23 @@ export default function MyChatbot() {
       setMessages(newMessages);
       setInput("");
       toggleGame();
+      return;
+    }
+    
+    // オセロゲームの起動コマンド
+    if (input.trim().toLowerCase() === 'オセロ' || 
+        input.trim().toLowerCase() === 'おせろ' || 
+        input.trim().toLowerCase() === 'othello' || 
+        input.trim().toLowerCase() === 'オセロゲーム' || 
+        input.trim().toLowerCase() === 'おせろゲーム') {
+      const newMessages: Message[] = [
+        ...messages, 
+        { role: "user", content: input },
+        { role: "assistant", content: "オセロを始めよう！君は黒、俺は白で6×6の盤面で対戦するよ。石は多い方が勝ちだ。緑色のマスに石を置けるからクリックしてみて。" }
+      ];
+      setMessages(newMessages);
+      setInput("");
+      toggleOthello();
       return;
     }
     
@@ -507,8 +858,12 @@ export default function MyChatbot() {
           </div>
           <div className="button-group">
             <button className="button" onClick={toggleGame}>
-              <span>{showGame ? "💬" : "🎮"}</span>
-              <span>{showGame ? "チャット" : "マルバツ"}</span>
+              <span>🎮</span>
+              <span>マルバツ</span>
+            </button>
+            <button className="button" onClick={toggleOthello}>
+              <span>⚫</span>
+              <span>オセロ</span>
             </button>
             <button className="button" onClick={toggleDarkMode}>
               <span>{darkMode ? "🌞" : "🌙"}</span>
@@ -585,7 +940,41 @@ export default function MyChatbot() {
         </div>
       )}
       
-      {showGame ? (
+      {showOthello ? (
+        /* オセロゲーム */
+        <div className="game-container">
+          <div className="game-status">
+            {othello.gameOver ? (
+              <div className="game-result">
+                {othello.blackCount > othello.whiteCount
+                  ? '🎉 おめでとう！君の勝ちだ！'
+                  : othello.blackCount < othello.whiteCount
+                  ? '😎 俺の勝ち！次は頑張れよ？'
+                  : '😯 引き分けだな'}
+              </div>
+            ) : (
+              <div className="turn-indicator">
+                {othello.skipTurn ? 
+                  `${othello.currentPlayer === 'black' ? '相手' : '君'}は打てる場所がないため、${othello.currentPlayer === 'black' ? '君' : '相手'}の番だよ` : 
+                  `${othello.currentPlayer === 'black' ? '君' : '相手'}のターン (${othello.currentPlayer === 'black' ? '黒' : '白'})`}
+              </div>
+            )}
+            <div className="disc-counts">
+              <div className="disc-count">黒 (あなた): {othello.blackCount} 個</div>
+              <div className="disc-count">白 (AI): {othello.whiteCount} 個</div>
+            </div>
+          </div>
+        
+          <div className="othello-board">
+            {othello.board.map((row, rowIndex) =>
+              row.map((_, colIndex) => renderOthelloCell(rowIndex, colIndex))
+            )}
+          </div>
+        
+          <button className="game-button" onClick={resetOthello}>ゲームをリセット</button>
+          <button className="game-button" onClick={toggleOthello}>チャットに戻る</button>
+        </div>
+      ) : showGame ? (
         /* マルバツゲーム */
         <div className="game-container">
           <div className="game-status">
