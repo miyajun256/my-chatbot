@@ -1,9 +1,12 @@
 // このファイルを app/api/chat/route.ts に保存（App Router構成）
 
-import { OpenAI } from "openai";
 import { NextRequest, NextResponse } from "next/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 
 // 通常モード用のシステムプロンプト
 const NORMAL_SYSTEM_PROMPT = `
@@ -80,41 +83,109 @@ function limitConversationHistory(messages: any[], maxMessages: number = 10) {
     return messages;
   }
   
-  // システムメッセージは残す
-  const systemMessages = messages.filter(msg => msg.role === "system");
-  
-  // ユーザーとアシスタントのメッセージを制限
-  const userAssistantMessages = messages.filter(msg => msg.role !== "system");
-  const recentMessages = userAssistantMessages.slice(-maxMessages);
-  
-  return [...systemMessages, ...recentMessages];
+  // 最新のメッセージを保持する
+  return messages.slice(-maxMessages);
 }
 
-// OpenAI APIを使った応答生成
+// LangChainを使ったOpenAI APIによる応答生成
 async function generateOpenAIResponse(model: string, messages: any[], temperature: number) {
-  const res = await openai.chat.completions.create({
-    model: model,
-    messages: messages,
-    temperature: temperature,
-  });
-  
-  return res.choices[0].message.content || "";
+  try {
+    // LangChainのChatOpenAIモデルを初期化
+    const chat = new ChatOpenAI({
+      modelName: model,
+      temperature: temperature,
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+    
+    // システムメッセージを取得
+    const systemMessage = messages.find(msg => msg.role === "system")?.content || "";
+    
+    // ユーザーとアシスタントのメッセージのみを抽出
+    const chatMessages = messages
+      .filter(msg => msg.role === "user" || msg.role === "assistant")
+      .map(msg => {
+        if (msg.role === "user") return new HumanMessage(msg.content);
+        return new AIMessage(msg.content);
+      });
+    
+    // チャットプロンプトテンプレートを作成
+    const chatPrompt = ChatPromptTemplate.fromMessages([
+      ["system", systemMessage],
+      new MessagesPlaceholder("history"),
+    ]);
+    
+    // チェーンを作成
+    const chain = RunnableSequence.from([
+      {
+        history: () => chatMessages,
+      },
+      chatPrompt,
+      chat,
+      new StringOutputParser(),
+    ]);
+    
+    // チェーンを実行して応答を生成
+    const response = await chain.invoke({});
+    
+    return response;
+  } catch (error) {
+    console.error("Error with OpenAI API:", error);
+    return "申し訳ありません。AIとの通信中にエラーが発生しました。";
+  }
 }
 
-// Anthropic APIを使った応答生成 (注: 実際にはAnthropicのSDKが必要)
+// Claude APIを使った応答生成（LangChain経由）
 async function generateClaudeResponse(model: string, messages: any[], temperature: number) {
-  // 実際のAnthropicAPI実装の場合
-  // ここではOpenAIを使用して代替
-  // Anthropic APIを使う場合は、適切なライブラリをインポートして実装してください
-  
-  // メッセージフォーマットの変換などが必要かもしれません
-  const res = await openai.chat.completions.create({
-    model: "gpt-4o", // フォールバックとしてGPT-4oを使用
-    messages: messages,
-    temperature: temperature,
-  });
-  
-  return (res.choices[0].message.content || "") + " (Claude風の応答をシミュレート)";
+  try {
+    // AnthropicのAPIキーが設定されていない場合はOpenAIにフォールバック
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.warn("ANTHROPIC_API_KEY not set, falling back to OpenAI");
+      return generateOpenAIResponse("gpt-4o", messages, temperature) + " (Claude風の応答をシミュレート)";
+    }
+    
+    // LangChainのChatAnthropicモデルを初期化
+    const chat = new ChatAnthropic({
+      modelName: model, // "claude-3-haiku" または "claude-3-5-sonnet"
+      temperature: temperature,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    });
+    
+    // システムメッセージを取得
+    const systemMessage = messages.find(msg => msg.role === "system")?.content || "";
+    
+    // ユーザーとアシスタントのメッセージのみを抽出
+    const chatMessages = messages
+      .filter(msg => msg.role === "user" || msg.role === "assistant")
+      .map(msg => {
+        if (msg.role === "user") return new HumanMessage(msg.content);
+        return new AIMessage(msg.content);
+      });
+    
+    // チャットプロンプトテンプレートを作成
+    const chatPrompt = ChatPromptTemplate.fromMessages([
+      ["system", systemMessage],
+      new MessagesPlaceholder("history"),
+    ]);
+    
+    // チェーンを作成
+    const chain = RunnableSequence.from([
+      {
+        history: () => chatMessages,
+      },
+      chatPrompt,
+      chat,
+      new StringOutputParser(),
+    ]);
+    
+    // チェーンを実行して応答を生成
+    const response = await chain.invoke({});
+    
+    return response;
+  } catch (error) {
+    console.error("Error with Claude API:", error);
+    // エラー時はOpenAIにフォールバック
+    return generateOpenAIResponse("gpt-4o", messages, temperature) + " (Claude APIエラーのためフォールバック)";
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -130,27 +201,25 @@ export async function POST(req: NextRequest) {
     // ダークモードに応じたシステムプロンプトを選択
     const SYSTEM_PROMPT = darkMode ? DARK_SYSTEM_PROMPT : NORMAL_SYSTEM_PROMPT;
     
-    // システムプロンプトを追加
-    const messagesWithSystem = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...messages
-    ];
-    
     // 会話履歴を制限（最大10メッセージに）
-    const limitedMessages = limitConversationHistory(messagesWithSystem, 10);
+    const limitedMessages = limitConversationHistory([...messages], 10);
+    const langchainReadyMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...limitedMessages
+    ];
     
     // モデルタイプに応じた処理
     let reply = "";
     if (modelConfig.apiType === "anthropic") {
       reply = await generateClaudeResponse(
         selectedModel, 
-        limitedMessages, 
+        langchainReadyMessages, 
         modelConfig.temperature
       );
     } else {
       reply = await generateOpenAIResponse(
         selectedModel, 
-        limitedMessages, 
+        langchainReadyMessages, 
         modelConfig.temperature
       );
     }

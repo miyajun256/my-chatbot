@@ -9,10 +9,18 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@langchain/anthropic": "^0.3.20",
+    "@langchain/community": "^0.3.43",
+    "@langchain/core": "^0.3.56",
+    "@langchain/openai": "^0.5.10",
+    "googleapis": "^148.0.0",
+    "langchain": "^0.3.26",
     "next": "15.3.2",
     "openai": "^4.98.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "serpapi": "^2.1.0",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

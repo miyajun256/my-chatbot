@@ -45,6 +45,7 @@ export default function MyChatbot() {
   const [error, setError] = useState<string | null>(null);
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [agentMode, setAgentMode] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // マルバツゲームの状態
@@ -744,84 +745,51 @@ export default function MyChatbot() {
   }, [showOthello]);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (input.trim() === "") return;
+    if (loading) return;
+    
+    // ユーザーメッセージを追加
+    const userMessage: Message = { role: "user", content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
     setError(null);
     
-    // マルバツゲームの起動コマンド
-    if (input.trim().toLowerCase() === 'まるばつ' || 
-        input.trim().toLowerCase() === 'マルバツ' || 
-        input.trim().toLowerCase() === 'tic tac toe' || 
-        input.trim().toLowerCase() === 'まるばつゲーム' || 
-        input.trim().toLowerCase() === 'マルバツゲーム') {
-      const gameMessage = darkMode 
-        ? "マルバツゲームか...まあいいけど。君は○、俺は×。先攻は俺。3つまでしか置けないから頭使え。" 
-        : "マルバツゲームを始めるよ！君は○、俺は×。先攻は俺がやるね。それぞれ3つまでしか置けないから、戦略的に配置してみて。";
-      
-      const newMessages: Message[] = [
-        ...messages, 
-        { role: "user", content: input },
-        { role: "assistant", content: gameMessage }
-      ];
-      setMessages(newMessages);
-      setInput("");
-      toggleGame();
-      return;
-    }
+    // 選択中のモデルが無ければデフォルトを使用
+    const model = selectedModel || localStorage.getItem("selectedModel") || "gpt-3.5-turbo";
     
-    // オセロゲームの起動コマンド
-    if (input.trim().toLowerCase() === 'オセロ' || 
-        input.trim().toLowerCase() === 'おせろ' || 
-        input.trim().toLowerCase() === 'othello' || 
-        input.trim().toLowerCase() === 'オセロゲーム' || 
-        input.trim().toLowerCase() === 'おせろゲーム') {
-      const gameMessage = darkMode
-        ? "オセロか...暇つぶしにはなるか。黒が君で、白が俺。6×6の盤面。多く取った方が勝ち。緑のマスに置けるからそこ押せ。" 
-        : "オセロを始めよう！君は黒、俺は白で6×6の盤面で対戦するよ。石は多い方が勝ちだ。緑色のマスに石を置けるからクリックしてみて。";
-      
-      const newMessages: Message[] = [
-        ...messages, 
-        { role: "user", content: input },
-        { role: "assistant", content: gameMessage }
-      ];
-      setMessages(newMessages);
-      setInput("");
-      toggleOthello();
-      return;
-    }
-    
-    const newMessages: Message[] = [...messages, { role: "user", content: input }];
-    setMessages(newMessages);
-    setInput("");
     setLoading(true);
-
     try {
-      const res = await fetch("/api/chat", {
+      // エージェントモードかどうかでAPIエンドポイントを切り替え
+      const apiEndpoint = agentMode ? "/api/agent" : "/api/chat";
+      
+      const res = await fetch(apiEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          messages: newMessages,
-          model: selectedModel,
-          darkMode: darkMode  // ダークモードの状態を送信
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: messages.concat(userMessage),
+          model,
+          darkMode,
         }),
       });
       
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "AIとの通信に失敗しました");
+        throw new Error(`API error: ${res.status}`);
       }
       
       const data = await res.json();
-      setMessages([...newMessages, { role: "assistant", content: data.reply }]);
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // アシスタントの返答を追加
+      const assistantMessage: Message = { role: "assistant", content: data.reply };
+      setMessages(prev => [...prev, assistantMessage]);
+      
     } catch (err) {
-      console.error("Error during chat API call:", err);
-      setError(err instanceof Error ? err.message : "通信エラーが発生しました");
-      // エラーメッセージをアシスタントのメッセージとして追加
-      setMessages([...newMessages, { 
-        role: "assistant", 
-        content: darkMode 
-          ? "はぁ...エラーが出た。後でもう一度試せ。" 
-          : "すみません、エラーが発生しました。しばらく待ってからもう一度試してみてください。" 
-      }]);
+      console.error("Error sending message:", err);
+      setError("メッセージの送信中にエラーが発生しました");
     } finally {
       setLoading(false);
     }
@@ -1262,55 +1230,605 @@ export default function MyChatbot() {
   };
 
   return (
-    <div className="container">
-      {/* ヘッダー */}
-      <div className="card">
-        <div className="header">
-          <div className="logo-container">
-            <div className="logo">AI</div>
-            <h1 className="title">俺っぽいAI</h1>
-          </div>
-          <div className="button-group">
-            <button className="button" onClick={toggleGame}>
-              <span>🎮</span>
-              <span>マルバツ</span>
-            </button>
-            <button className="button" onClick={toggleOthello}>
-              <span>⚫</span>
-              <span>オセロ</span>
-            </button>
-            <button className="button" onClick={toggleDarkMode}>
-              <span>{darkMode ? "🌞" : "🌙"}</span>
-              <span>{darkMode ? "ライト" : "ダーク"}</span>
-            </button>
-            <button className="button" onClick={clearChat}>
-              <span>🔄</span>
-              <span>リセット</span>
-            </button>
-          </div>
-        </div>
+    <>
+      <style jsx global>{`
+        /* ベースとなるリセットスタイル */
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
 
-        {/* モデル選択 */}
-        <div className="model-selector">
-          <div className="model-container">
-            <span className="model-label">AIモデル</span>
-            {loadingModels ? (
-              <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px' }}>
-                <div style={{ 
-                  height: '16px', 
-                  width: '128px', 
-                  animation: 'pulse 1.5s infinite',
-                  background: darkMode ? '#374151' : '#d1d5db',
-                  borderRadius: '4px'
-                }}></div>
-              </div>
-            ) : (
-              <div style={{ position: 'relative' }}>
-                <select 
-                  value={selectedModel} 
+        html, body {
+          height: 100% !important;
+          width: 100%;
+          overflow-x: hidden;
+        }
+
+        body {
+          background: linear-gradient(135deg, #f9fafb, #f3f4f6, #e5e7eb);
+          background-size: 300% 300%;
+          background-attachment: fixed;
+          animation: gradient 15s ease infinite;
+          color: #171717;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          line-height: 1.5;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          overflow-x: hidden;
+        }
+
+        #__next, main {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .dark body {
+          background: linear-gradient(135deg, #111827, #1f2937, #374151);
+          color: #f1f5f9;
+        }
+
+        /* レイアウト */
+        .container {
+          max-width: 64rem;
+          margin: 0 auto;
+          padding: 1.5rem;
+          width: 100%;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        /* カード要素 */
+        .card {
+          background-color: rgba(255, 255, 255, 0.7);
+          border-radius: 1rem;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+          backdrop-filter: blur(8px);
+          padding: 1.25rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .dark .card {
+          background-color: rgba(17, 24, 39, 0.7);
+          border-color: #1f2937;
+        }
+
+        /* チャットウィンドウ */
+        .chat-window {
+          backdrop-filter: blur(8px);
+          background-color: rgba(255, 255, 255, 0.7);
+          border-radius: 1rem;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+          padding: 1.25rem;
+          height: 65vh;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 400px;
+        }
+
+        .dark .chat-window {
+          background-color: rgba(17, 24, 39, 0.7);
+          border-color: #1f2937;
+        }
+
+        .messages {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          flex: 1;
+          overflow-y: auto;
+        }
+
+        .message {
+          display: flex;
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .message.user {
+          justify-content: flex-end;
+        }
+
+        .message.assistant {
+          justify-content: flex-start;
+        }
+
+        .message-bubble {
+          max-width: 75%;
+          padding: 0.75rem 1rem;
+          border-radius: 1rem;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .message.user .message-bubble {
+          background: linear-gradient(to right, #3b82f6, #2563eb);
+          color: white;
+          border-top-right-radius: 0;
+        }
+
+        .message.assistant .message-bubble {
+          background-color: rgba(243, 244, 246, 0.8);
+          color: #171717;
+          border-top-left-radius: 0;
+        }
+
+        .dark .message.assistant .message-bubble {
+          background-color: rgba(31, 41, 55, 0.8);
+          color: #f1f5f9;
+        }
+
+        .message-text {
+          font-size: 0.875rem;
+        }
+
+        /* 入力エリア */
+        .input-area {
+          margin-top: 1rem;
+          backdrop-filter: blur(8px);
+          background-color: rgba(255, 255, 255, 0.7);
+          border-radius: 1rem;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+          padding: 1rem;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .dark .input-area {
+          background-color: rgba(17, 24, 39, 0.7);
+          border-color: #1f2937;
+        }
+
+        .message-input {
+          flex: 1;
+          min-width: 200px;
+          padding: 0.75rem;
+          border-radius: 0.75rem;
+          background-color: rgba(255, 255, 255, 0.4);
+          border: 1px solid #e5e7eb;
+          resize: none;
+          font-family: inherit;
+          font-size: 0.875rem;
+          color: #171717;
+          box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .dark .message-input {
+          background-color: rgba(31, 41, 55, 0.4);
+          border-color: #292524;
+          color: #f1f5f9;
+        }
+
+        .message-input:focus {
+          outline: none;
+          box-shadow: 0 0 0 2px #2563eb;
+        }
+
+        .dark .message-input:focus {
+          box-shadow: 0 0 0 2px #3b82f6;
+        }
+
+        .send-button {
+          margin-left: 0.75rem;
+          padding: 0.5rem 1.25rem;
+          border-radius: 0.75rem;
+          background: linear-gradient(to right, #3b82f6, #4f46e5);
+          color: white;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .send-button:hover {
+          background: linear-gradient(to right, #2563eb, #4338ca);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .send-button:disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+
+        .send-icon {
+          margin-left: 0.25rem;
+          width: 1rem;
+          height: 1rem;
+        }
+        
+        @keyframes gradient {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* ローディングアニメーション */
+        .loading-dots {
+          display: flex;
+          align-items: center;
+        }
+
+        .loading-text {
+          font-size: 0.875rem;
+        }
+
+        .dots-container {
+          display: flex;
+          align-items: center;
+          margin-left: 0.5rem;
+          gap: 0.25rem;
+        }
+
+        .dot {
+          width: 0.25rem;
+          height: 0.25rem;
+          border-radius: 50%;
+          background-color: currentColor;
+          display: inline-block;
+        }
+
+        .dot-1 {
+          animation: bounce 1s infinite;
+        }
+
+        .dot-2 {
+          animation: bounce 1s infinite 0.2s;
+        }
+
+        .dot-3 {
+          animation: bounce 1s infinite 0.4s;
+        }
+
+        @keyframes bounce {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-5px);
+          }
+        }
+
+        /* スクロールバーのスタイル */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* マルバツゲーム用のスタイル */
+        .game-container {
+          backdrop-filter: blur(8px);
+          background-color: rgba(255, 255, 255, 0.7);
+          border-radius: 1rem;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.5rem;
+          width: 100%;
+          max-width: 400px;
+          margin: 0 auto 1.5rem auto;
+        }
+
+        .dark .game-container {
+          background-color: rgba(17, 24, 39, 0.7);
+          border-color: #1f2937;
+        }
+
+        .game-status {
+          text-align: center;
+          width: 100%;
+        }
+
+        .game-result {
+          font-size: 1.25rem;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          background: linear-gradient(to right, #3b82f6, #8b5cf6);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: gradient 3s ease infinite;
+          background-size: 200% auto;
+        }
+
+        .turn-indicator {
+          font-size: 1.125rem;
+          margin-bottom: 0.5rem;
+          font-weight: 500;
+          color: #171717;
+        }
+
+        .dark .turn-indicator {
+          color: #f1f5f9;
+        }
+
+        .mark-counts {
+          display: flex;
+          justify-content: center;
+          gap: 2rem;
+          margin-top: 0.5rem;
+        }
+
+        .mark-count {
+          font-size: 0.875rem;
+          color: #6b7280;
+        }
+
+        .dark .mark-count {
+          color: #a1a1aa;
+        }
+
+        .game-board {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          grid-gap: 0.5rem;
+          width: 300px;
+          height: 300px;
+        }
+
+        .game-cell {
+          background-color: rgba(255, 255, 255, 0.1);
+          border: 2px solid #e5e7eb;
+          border-radius: 0.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 2.5rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          color: #171717;
+          aspect-ratio: 1;
+        }
+
+        .dark .game-cell {
+          background-color: rgba(31, 41, 55, 0.4);
+          border-color: #292524;
+          color: #f1f5f9;
+        }
+
+        .game-cell:hover:not(.marked) {
+          background-color: rgba(59, 130, 246, 0.1);
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .game-cell.marked {
+          cursor: default;
+        }
+
+        .game-button {
+          padding: 0.75rem 1.5rem;
+          border-radius: 0.75rem;
+          background: linear-gradient(to right, #3b82f6, #4f46e5);
+          color: white;
+          font-weight: 500;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .game-button:hover {
+          background: linear-gradient(to right, #2563eb, #4338ca);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* オセロゲーム用のスタイル */
+        .othello-board {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          grid-template-rows: repeat(6, 1fr);
+          gap: 4px;
+          width: 360px;
+          height: 360px;
+          max-width: 100%;
+          background-color: rgba(0, 0, 0, 0.05);
+          padding: 8px;
+          border-radius: 8px;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .othello-board {
+          background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .othello-cell {
+          background-color: #43a047;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          cursor: pointer;
+          transition: all 0.2s;
+          aspect-ratio: 1;
+        }
+
+        .othello-cell:hover.legal-move {
+          background-color: #66bb6a;
+        }
+
+        .othello-disc {
+          width: 85%;
+          height: 85%;
+          border-radius: 50%;
+          transition: all 0.3s ease;
+        }
+
+        .othello-disc.black {
+          background-color: #212121;
+          box-shadow: inset 0px -3px 5px rgba(255, 255, 255, 0.2), 
+                    inset 0px 3px 5px rgba(0, 0, 0, 0.5),
+                    0px 2px 5px rgba(0, 0, 0, 0.3);
+          animation: flip-to-black 0.3s;
+        }
+
+        .othello-disc.white {
+          background-color: #f5f5f5;
+          box-shadow: inset 0px -3px 5px rgba(0, 0, 0, 0.1), 
+                    inset 0px 3px 5px rgba(255, 255, 255, 0.8),
+                    0px 2px 5px rgba(0, 0, 0, 0.1);
+          animation: flip-to-white 0.3s;
+        }
+
+        .legal-move-indicator {
+          width: 30%;
+          height: 30%;
+          border-radius: 50%;
+          background-color: rgba(0, 0, 0, 0.2);
+          position: absolute;
+        }
+
+        .disc-counts {
+          display: flex;
+          justify-content: center;
+          gap: 2rem;
+          margin-top: 0.5rem;
+          font-weight: 500;
+        }
+
+        .disc-count {
+          padding: 0.5rem 1rem;
+          border-radius: 0.5rem;
+          background-color: rgba(255, 255, 255, 0.1);
+          font-size: 0.875rem;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* オセロアニメーション */
+        @keyframes flip-to-black {
+          0% {
+            transform: rotateY(0deg);
+            background-color: #f5f5f5;
+          }
+          50% {
+            transform: rotateY(90deg);
+          }
+          100% {
+            transform: rotateY(180deg);
+            background-color: #212121;
+          }
+        }
+
+        @keyframes flip-to-white {
+          0% {
+            transform: rotateY(0deg);
+            background-color: #212121;
+          }
+          50% {
+            transform: rotateY(90deg);
+          }
+          100% {
+            transform: rotateY(180deg);
+            background-color: #f5f5f5;
+          }
+        }
+
+        /* レスポンシブスタイル */
+        @media (max-width: 768px) {
+          .container {
+            padding: 0.75rem;
+            max-width: 100%;
+          }
+          
+          .message-bubble {
+            max-width: 85%;
+          }
+
+          .chat-window {
+            height: 60vh;
+            min-height: 300px;
+          }
+
+          .button-group {
+            flex-wrap: wrap;
+          }
+        }
+
+        @media (max-width: 500px) {
+          .othello-board {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1;
+            max-width: 300px;
+          }
+
+          .disc-counts {
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: center;
+          }
+        }
+
+        @media (max-width: 400px) {
+          .game-board {
+            width: 100%;
+            height: auto;
+            max-width: 300px;
+          }
+          
+          .game-cell {
+            font-size: 1.75rem;
+          }
+        }
+      `}</style>
+    
+      <main className={`flex min-h-screen flex-col p-2 sm:p-6 md:p-24 transition-colors duration-300 ${darkMode ? "dark bg-slate-900 text-white" : "bg-white text-black"}`}>
+        <div className={`flex flex-col w-full max-w-4xl mx-auto rounded-lg border shadow-lg overflow-hidden ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
+          <div className={`flex justify-between items-center p-4 border-b ${darkMode ? "border-slate-700" : "border-gray-200"}`}>
+            <h1 className="text-2xl font-semibold">マイチャットボット</h1>
+            <div className="flex gap-2 items-center">
+              {!loadingModels && (
+                <select
+                  value={selectedModel}
                   onChange={handleModelChange}
-                  className="model-select"
-                  disabled={loading}
+                  className={`text-sm p-1 rounded border ${darkMode ? "bg-slate-700 text-white border-slate-600" : "bg-white text-black border-gray-300"}`}
                 >
                   {modelOptions.map(option => (
                     <option key={option.id} value={option.id}>
@@ -1318,157 +1836,83 @@ export default function MyChatbot() {
                     </option>
                   ))}
                 </select>
-                <div style={{ 
-                  position: 'absolute', 
-                  right: '12px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)', 
-                  pointerEvents: 'none'
-                }}>
-                  <div style={{ 
-                    width: '8px', 
-                    height: '8px', 
-                    borderRadius: '9999px',
-                    background: selectedModel.includes('gpt-4') 
-                      ? '#10b981' 
-                      : selectedModel.includes('claude') 
-                        ? '#8b5cf6' 
-                        : selectedModel.includes('gpt-3.5') 
-                          ? '#f59e0b' 
-                          : '#6b7280'
-                  }}></div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* エラーメッセージ */}
-      {error && (
-        <div className="error">
-          <svg className="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          {error}
-        </div>
-      )}
-      
-      {showOthello ? (
-        /* オセロゲーム */
-        <div className="game-container">
-          <div className="game-status">
-            {othello.gameOver ? (
-              <div className="game-result">
-                {othello.blackCount > othello.whiteCount
-                  ? darkMode 
-                    ? '勝ったな。運がよかっただけだろうけど。' 
-                    : '🎉 おめでとう！君の勝ちだ！'
-                  : othello.blackCount < othello.whiteCount
-                  ? darkMode 
-                    ? 'はいはい、俺の勝ち。まあ当然な。' 
-                    : '😎 俺の勝ち！次は頑張れよ？'
-                  : darkMode 
-                    ? '引き分けか...まあどうでもいいけど。' 
-                    : '😯 引き分けだな'}
-              </div>
-            ) : (
-              <div className="turn-indicator">
-                {othello.skipTurn ? 
-                  `${othello.currentPlayer === 'black' ? '相手' : '君'}は打てる場所がないため、${othello.currentPlayer === 'black' ? '君' : '相手'}の番だよ` : 
-                  `${othello.currentPlayer === 'black' ? '君' : '相手'}のターン (${othello.currentPlayer === 'black' ? '黒' : '白'})`}
-              </div>
-            )}
-            <div className="disc-counts">
-              <div className="disc-count">黒 (あなた): {othello.blackCount} 個</div>
-              <div className="disc-count">白 (AI): {othello.whiteCount} 個</div>
-            </div>
-          </div>
-        
-          <div className="othello-board">
-            {othello.board.map((row, rowIndex) =>
-              row.map((_, colIndex) => renderOthelloCell(rowIndex, colIndex))
-            )}
-          </div>
-        
-          <button className="game-button" onClick={initOthelloBoard}>ゲームをリセット</button>
-          <button className="game-button" onClick={toggleOthello}>チャットに戻る</button>
-        </div>
-      ) : showGame ? (
-        /* マルバツゲーム */
-        <div className="game-container">
-          <div className="game-status">
-            {tictactoe.gameOver ? (
-              <div className="game-result">
-                {tictactoe.winner === '○' ? 
-                  darkMode 
-                    ? 'ふん、まぐれで勝ったな。' 
-                    : '🎉 おめでとう！君の勝ちだ！' 
-                  : tictactoe.winner === '×' ? 
-                  darkMode 
-                    ? '負けたか。まあ俺には勝てないよな。' 
-                    : '😎 俺の勝ち！次は頑張れよ？' 
-                  : darkMode 
-                    ? '引き分け...つまらん。' 
-                    : '😯 引き分けだな'}
-              </div>
-            ) : (
-              <div className="turn-indicator">
-                {tictactoe.isPlayerTurn ? 
-                  darkMode
-                    ? `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- 動かせ。' : ''}` 
-                    : `君のターン (○) ${tictactoe.playerMarks >= 3 ? '- マークを動かそう' : ''}` 
-                  : darkMode
-                    ? '俺のターン (×)...ちょっと待て。' 
-                    : '俺のターン (×)...'}
-              </div>
-            )}
-            <div className="mark-counts">
-              <div className="mark-count">あなた: {tictactoe.playerMarks}/3 個</div>
-              <div className="mark-count">AI: {tictactoe.aiMarks}/3 個</div>
-            </div>
-          </div>
-        
-          <div className="game-board">
-            {tictactoe.board.map((cell, index) => (
-              <div 
-                key={index} 
-                className={`game-cell ${cell ? 'marked' : ''}`}
-                onClick={() => handleCellClick(index)}
+              )}
+              
+              {/* エージェントモード切り替えボタン */}
+              <button 
+                onClick={() => setAgentMode(!agentMode)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  agentMode 
+                    ? 'bg-green-600 hover:bg-green-700 text-white' 
+                    : darkMode 
+                      ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
               >
-                {cell}
-              </div>
-            ))}
+                {agentMode ? '最新情報検索: ON' : '最新情報検索: OFF'}
+              </button>
+              
+              <button
+                onClick={toggleDarkMode}
+                className={`p-2 rounded-full transition-colors ${
+                  darkMode 
+                    ? 'hover:bg-slate-700 text-yellow-300' 
+                    : 'hover:bg-gray-200 text-gray-700'
+                }`}
+                aria-label={darkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+              >
+                {darkMode ? (
+                  <span role="img" aria-hidden="true" className="text-lg">☀️</span>
+                ) : (
+                  <span role="img" aria-hidden="true" className="text-lg">🌙</span>
+                )}
+              </button>
+              <button
+                onClick={clearChat}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+              >
+                クリア
+              </button>
+            </div>
           </div>
-        
-          <button className="game-button" onClick={resetGame}>ゲームをリセット</button>
-          <button className="game-button" onClick={toggleGame}>チャットに戻る</button>
-        </div>
-      ) : (
-        <>
+
           {/* チャットウィンドウ */}
-          <div className="chat-window">
-            <div className="messages">
+          <div className={`h-[500px] overflow-y-auto p-4 ${darkMode ? "bg-slate-800" : "bg-gray-50"}`}>
+            <div className="flex flex-col gap-4">
               {messages.map((msg, i) => (
                 <div 
                   key={i} 
-                  className={`message ${msg.role}`}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className="message-bubble">
-                    <div className="message-text">{msg.content}</div>
+                  <div 
+                    className={`max-w-[75%] rounded-lg px-4 py-2 ${
+                      msg.role === "user" 
+                        ? "bg-blue-600 text-white rounded-br-none" 
+                        : darkMode 
+                          ? "bg-slate-700 text-white rounded-bl-none" 
+                          : "bg-gray-200 text-gray-800 rounded-bl-none"
+                    }`}
+                  >
+                    {msg.content}
                   </div>
                 </div>
               ))}
               
               {loading && (
-                <div className="message assistant">
-                  <div className="message-bubble">
-                    <div className="loading-dots">
-                      <span className="loading-text">考え中</span>
-                      <div className="dots-container">
-                        <span className="dot dot-1"></span>
-                        <span className="dot dot-2"></span>
-                        <span className="dot dot-3"></span>
+                <div className="flex justify-start">
+                  <div className={`max-w-[75%] rounded-lg px-4 py-2 rounded-bl-none ${
+                    darkMode ? "bg-slate-700 text-white" : "bg-gray-200 text-gray-800"
+                  }`}>
+                    <div className="flex items-center">
+                      <span>考え中</span>
+                      <div className="flex items-center ml-2">
+                        <span className="w-1 h-1 bg-current rounded-full animate-bounce mx-0.5" style={{ animationDelay: "0ms" }}></span>
+                        <span className="w-1 h-1 bg-current rounded-full animate-bounce mx-0.5" style={{ animationDelay: "200ms" }}></span>
+                        <span className="w-1 h-1 bg-current rounded-full animate-bounce mx-0.5" style={{ animationDelay: "400ms" }}></span>
                       </div>
                     </div>
                   </div>
@@ -1480,9 +1924,13 @@ export default function MyChatbot() {
           </div>
           
           {/* 入力エリア */}
-          <div className="input-area">
+          <div className={`p-4 flex gap-2 border-t ${darkMode ? "border-slate-700 bg-slate-800" : "border-gray-200 bg-gray-50"}`}>
             <textarea
-              className="message-input"
+              className={`flex-1 p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 ${
+                darkMode 
+                  ? "bg-slate-700 border-slate-600 text-white focus:ring-blue-500" 
+                  : "bg-white border-gray-300 text-black focus:ring-blue-400"
+              }`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -1491,25 +1939,29 @@ export default function MyChatbot() {
               disabled={loading}
             />
             <button 
-              className="send-button"
+              className={`px-4 py-2 rounded-lg font-medium flex items-center ${
+                loading 
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
               onClick={sendMessage}
               disabled={loading}
             >
               {loading ? (
                 <span>送信中...</span>
               ) : (
-                <span style={{ display: 'flex', alignItems: 'center' }}>
+                <span className="flex items-center">
                   <span>送信</span>
-                  <svg className="send-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="ml-1 w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
                 </span>
               )}
             </button>
           </div>
-        </>
-      )}
-    </div>
+        </div>
+      </main>
+    </>
   );
 }
 

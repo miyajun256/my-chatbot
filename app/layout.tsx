@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-});
-
 export const metadata: Metadata = {
-  title: "俺っぽいAIチャットボット",
-  description: "落ち着いた雰囲気で短文・断定を避けた言い回しを使うAIアシスタント",
+  title: "マイチャットボット",
+  description: "Next.js + OpenAI API で作るシンプルチャットボット",
 };
 
 export default function RootLayout({
@@ -18,9 +12,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body className={inter.className}>
-        {children}
+    <html lang="ja" className="h-full">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <link
+          href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="h-full w-full">
+        <main className="h-full w-full flex flex-col">
+          {children}
+        </main>
       </body>
     </html>
   );
