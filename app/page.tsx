@@ -449,9 +449,71 @@ export default function MyChatbot() {
       return;
     }
     
-    // 簡単な評価関数：裏返せる石の数が最も多い手を選ぶ
-    let bestScore = -1;
+    // 強化した評価関数で最善手を決定
+    let bestScore = -Infinity;
     let bestMove: [number, number] = [-1, -1];
+    
+    // ボード評価関数（静的評価）
+    const evaluateBoard = (board: string[][], player: 'black' | 'white'): number => {
+      // 盤面の位置価値マトリックス（値が高いほど良い位置）
+      const positionValue = [
+        [120, -20, 20, 20, -20, 120],
+        [-20, -40, -5, -5, -40, -20],
+        [20,  -5,  15, 15, -5,  20],
+        [20,  -5,  15, 15, -5,  20],
+        [-20, -40, -5, -5, -40, -20],
+        [120, -20, 20, 20, -20, 120]
+      ];
+      
+      let score = 0;
+      const opponent = player === 'white' ? 'black' : 'white';
+      
+      // 1. 石の数差
+      let countDiff = 0;
+      
+      // 2. 終盤に近いかどうかを判断するための全石数
+      let totalStones = 0;
+      
+      // 3. 手番数（空きマス数で推定）
+      let emptyCells = 0;
+      
+      for (let r = 0; r < 6; r++) {
+        for (let c = 0; c < 6; c++) {
+          if (board[r][c] === player) {
+            countDiff++;
+            totalStones++;
+            // 位置の評価を追加
+            score += positionValue[r][c];
+          } else if (board[r][c] === opponent) {
+            countDiff--;
+            totalStones++;
+            // 相手の位置評価を減算
+            score -= positionValue[r][c];
+          } else {
+            emptyCells++;
+          }
+        }
+      }
+      
+      // ゲームフェーズの判定（序盤、中盤、終盤）
+      const endgameThreshold = 30; // 6x6なので36マス中30が埋まったら終盤と判断
+      const isEndgame = totalStones >= endgameThreshold;
+      
+      // 終盤では石数差を重視
+      if (isEndgame) {
+        score += countDiff * 10;
+      } else {
+        // 序盤・中盤では機動力（合法手の数）を重視
+        const myMoves = findLegalMoves(board, player).length;
+        const opponentMoves = findLegalMoves(board, opponent).length;
+        score += (myMoves - opponentMoves) * 5;
+        
+        // 石数差はあまり重視しない
+        score += countDiff * 2;
+      }
+      
+      return score;
+    };
     
     // 隅を優先して取る戦略
     const cornerMoves = legalMoves.filter(([r, c]) => 
@@ -460,36 +522,99 @@ export default function MyChatbot() {
     );
     
     if (cornerMoves.length > 0) {
-      // ランダムに隅を選択
-      bestMove = cornerMoves[Math.floor(Math.random() * cornerMoves.length)];
-    } else {
-      // 隅がない場合は裏返せる石の数が多い手を選ぶ
-      for (const [row, col] of legalMoves) {
-        const flipped = getFlippedDiscs(currentBoard, row, col, 'white');
+      // 隅があるなら隅を選択
+      // それぞれの隅を評価
+      for (const [row, col] of cornerMoves) {
+        const testBoard = [...currentBoard.map(r => [...r])];
+        testBoard[row][col] = 'white';
         
-        // 特定の位置に重みを与える（辺を優先）
-        let score = flipped.length;
-        
-        // 辺の位置にボーナス
-        if (row === 0 || row === 5 || col === 0 || col === 5) {
-          score += 2;
+        // 裏返す石を計算して適用
+        const flippedDiscs = getFlippedDiscs(testBoard, row, col, 'white');
+        for (const [r, c] of flippedDiscs) {
+          testBoard[r][c] = 'white';
         }
         
-        // 隅の隣は避ける
-        if ((row === 0 && col === 1) || (row === 1 && col === 0) || 
-            (row === 0 && col === 4) || (row === 1 && col === 5) || 
-            (row === 4 && col === 0) || (row === 5 && col === 1) || 
-            (row === 4 && col === 5) || (row === 5 && col === 4)) {
-          score -= 1;
-        }
+        // 盤面を評価
+        const score = evaluateBoard(testBoard, 'white');
         
         if (score > bestScore) {
           bestScore = score;
           bestMove = [row, col];
         }
       }
+    } else {
+      // ミニマックス的な先読み（深さ2の探索）
+      for (const [row, col] of legalMoves) {
+        // AIが石を置いてみる
+        const testBoard = [...currentBoard.map(r => [...r])];
+        testBoard[row][col] = 'white';
+        
+        // 裏返す石を計算して適用
+        const flippedDiscs = getFlippedDiscs(testBoard, row, col, 'white');
+        for (const [r, c] of flippedDiscs) {
+          testBoard[r][c] = 'white';
+        }
+        
+        // プレイヤーの合法手を見つける
+        const playerMoves = findLegalMoves(testBoard, 'black');
+        
+        if (playerMoves.length === 0) {
+          // プレイヤーがパスなら高評価
+          const score = evaluateBoard(testBoard, 'white') + 30;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = [row, col];
+          }
+          continue;
+        }
+        
+        // プレイヤーの最善手を探す
+        let playerBestScore = Infinity;
+        
+        for (const [pRow, pCol] of playerMoves) {
+          const playerBoard = [...testBoard.map(r => [...r])];
+          playerBoard[pRow][pCol] = 'black';
+          
+          // 裏返す石を計算して適用
+          const playerFlipped = getFlippedDiscs(playerBoard, pRow, pCol, 'black');
+          for (const [r, c] of playerFlipped) {
+            playerBoard[r][c] = 'black';
+          }
+          
+          // プレイヤー視点での評価（低いほど良い）
+          const playerScore = evaluateBoard(playerBoard, 'white');
+          playerBestScore = Math.min(playerBestScore, playerScore);
+        }
+        
+        // 最終評価（相手の最善手を考慮）
+        if (playerBestScore > bestScore) {
+          bestScore = playerBestScore;
+          bestMove = [row, col];
+        }
+      }
       
-      // 良い手が見つからない場合はランダム選択
+      // どの手も良くない場合は、単純な評価関数で決める
+      if (bestMove[0] === -1) {
+        for (const [row, col] of legalMoves) {
+          const testBoard = [...currentBoard.map(r => [...r])];
+          testBoard[row][col] = 'white';
+          
+          // 裏返す石を計算して適用
+          const flippedDiscs = getFlippedDiscs(testBoard, row, col, 'white');
+          for (const [r, c] of flippedDiscs) {
+            testBoard[r][c] = 'white';
+          }
+          
+          const score = evaluateBoard(testBoard, 'white');
+          
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = [row, col];
+          }
+        }
+      }
+      
+      // それでも見つからない場合はランダム
       if (bestMove[0] === -1) {
         bestMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
       }
@@ -887,7 +1012,188 @@ export default function MyChatbot() {
 
   // 最適な手を見つける（マルバツゲーム）
   const findBestMove = (board: Array<string | null>, aiMarksCount: number): number => {
-    // 勝てる手があれば選択
+    // ミニマックスアルゴリズムの深さ
+    const maxDepth = 5;
+    
+    // 盤面の評価関数
+    const evaluateBoard = (board: Array<string | null>, depth: number): number => {
+      // 勝敗をチェック
+      const winner = checkWinner(board);
+      
+      if (winner === '×') return 100 - depth; // AIの勝ち (深さが浅いほど価値が高い)
+      if (winner === '○') return depth - 100; // プレイヤーの勝ち (できるだけ遅らせる)
+      
+      // 勝敗がついていない場合は盤面の状況を評価
+      let score = 0;
+      
+      // 中央のマス
+      if (board[4] === '×') score += 3;
+      if (board[4] === '○') score -= 3;
+      
+      // 角のマス
+      const corners = [0, 2, 6, 8];
+      for (const corner of corners) {
+        if (board[corner] === '×') score += 2;
+        if (board[corner] === '○') score -= 2;
+      }
+      
+      // 3つのマークで勝てるラインをチェック
+      const lines = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // 横
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // 縦
+        [0, 4, 8], [2, 4, 6]             // 斜め
+      ];
+      
+      for (const line of lines) {
+        let aiCount = 0;
+        let playerCount = 0;
+        let emptyCount = 0;
+        
+        for (const pos of line) {
+          if (board[pos] === '×') aiCount++;
+          else if (board[pos] === '○') playerCount++;
+          else emptyCount++;
+        }
+        
+        // AI有利なライン
+        if (aiCount === 2 && emptyCount === 1) score += 5;
+        else if (aiCount === 1 && emptyCount === 2) score += 1;
+        
+        // プレイヤー有利なライン
+        if (playerCount === 2 && emptyCount === 1) score -= 5; // ブロック重要
+      }
+      
+      return score;
+    };
+    
+    // ミニマックスアルゴリズム（アルファベータ枝刈り）
+    const minimax = (board: Array<string | null>, depth: number, isMaximizing: boolean, alpha: number, beta: number, aiMarks: number, playerMarks: number): [number, number] => {
+      // 終了条件
+      if (depth === 0 || checkWinner(board) !== null) {
+        return [evaluateBoard(board, depth), -1];
+      }
+      
+      if (isMaximizing) { // AIのターン
+        let bestScore = -Infinity;
+        let bestMove = -1;
+        
+        // 可能な手をすべて試す
+        for (let i = 0; i < 9; i++) {
+          // 空きマスがある場合
+          if (!board[i]) {
+            if (aiMarks < 3) {
+              // 新しいマークを置く
+              const newBoard = [...board];
+              newBoard[i] = '×';
+              
+              const [score, _] = minimax(newBoard, depth - 1, false, alpha, beta, aiMarks + 1, playerMarks);
+              
+              if (score > bestScore) {
+                bestScore = score;
+                bestMove = i;
+              }
+              
+              alpha = Math.max(alpha, bestScore);
+              if (beta <= alpha) break; // アルファベータ枝刈り
+            }
+          }
+        }
+        
+        // 3つのマークがすでにある場合は移動も考慮
+        if (aiMarks >= 3) {
+          for (let i = 0; i < 9; i++) {
+            if (board[i] === '×') {
+              for (let j = 0; j < 9; j++) {
+                if (!board[j]) {
+                  // マークを移動
+                  const newBoard = [...board];
+                  newBoard[i] = null;
+                  newBoard[j] = '×';
+                  
+                  const [score, _] = minimax(newBoard, depth - 1, false, alpha, beta, aiMarks, playerMarks);
+                  
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = j * 10 + i; // 移動の場合、bestMoveを特殊な値にする
+                  }
+                  
+                  alpha = Math.max(alpha, bestScore);
+                  if (beta <= alpha) break;
+                }
+              }
+            }
+          }
+        }
+        
+        return [bestScore, bestMove];
+      } else { // プレイヤーのターン
+        let bestScore = Infinity;
+        let bestMove = -1;
+        
+        // 可能な手をすべて試す
+        for (let i = 0; i < 9; i++) {
+          if (!board[i]) {
+            if (playerMarks < 3) {
+              const newBoard = [...board];
+              newBoard[i] = '○';
+              
+              const [score, _] = minimax(newBoard, depth - 1, true, alpha, beta, aiMarks, playerMarks + 1);
+              
+              if (score < bestScore) {
+                bestScore = score;
+                bestMove = i;
+              }
+              
+              beta = Math.min(beta, bestScore);
+              if (beta <= alpha) break;
+            }
+          }
+        }
+        
+        // プレイヤーも3つのマークがある場合は移動を考慮
+        if (playerMarks >= 3) {
+          for (let i = 0; i < 9; i++) {
+            if (board[i] === '○') {
+              for (let j = 0; j < 9; j++) {
+                if (!board[j]) {
+                  const newBoard = [...board];
+                  newBoard[i] = null;
+                  newBoard[j] = '○';
+                  
+                  const [score, _] = minimax(newBoard, depth - 1, true, alpha, beta, aiMarks, playerMarks);
+                  
+                  if (score < bestScore) {
+                    bestScore = score;
+                    bestMove = j;
+                  }
+                  
+                  beta = Math.min(beta, bestScore);
+                  if (beta <= alpha) break;
+                }
+              }
+            }
+          }
+        }
+        
+        return [bestScore, bestMove];
+      }
+    };
+    
+    // 実際のミニマックス実行（開始深さを調整）
+    const useDepth = aiMarksCount < 3 ? maxDepth : 4; // より複雑な局面では計算量削減
+    const [_, bestMove] = minimax(board, useDepth, true, -Infinity, Infinity, aiMarksCount, tictactoe.playerMarks);
+    
+    // 特殊な値の場合は移動を処理
+    if (bestMove >= 10) {
+      const to = Math.floor(bestMove / 10);
+      const from = bestMove % 10;
+      
+      // 移動元の石を消す
+      board[from] = null;
+      return to;
+    }
+    
+    // 勝てる手があれば優先
     for (let i = 0; i < 9; i++) {
       if (!board[i]) {
         const testBoard = [...board];
@@ -898,7 +1204,7 @@ export default function MyChatbot() {
       }
     }
     
-    // 相手が次に勝てる手を防ぐ
+    // プレイヤーの勝ちを阻止する手があれば優先
     for (let i = 0; i < 9; i++) {
       if (!board[i]) {
         const testBoard = [...board];
@@ -909,31 +1215,34 @@ export default function MyChatbot() {
       }
     }
     
-    // 中央が空いていれば選択
-    if (!board[4]) {
-      return 4;
-    }
-    
-    // 角が空いていれば選択
-    const corners = [0, 2, 6, 8];
-    const emptyCorners = corners.filter(i => !board[i]);
-    if (emptyCorners.length > 0) {
-      return emptyCorners[Math.floor(Math.random() * emptyCorners.length)];
-    }
-    
-    // それ以外の場合は空いているマスをランダムに選択
-    const emptyIndexes = [];
-    for (let i = 0; i < 9; i++) {
-      if (!board[i]) {
-        emptyIndexes.push(i);
+    // ミニマックスが有効な手を見つけられなかった場合のフォールバック
+    if (bestMove === -1) {
+      // 中央が空いていれば選択
+      if (!board[4]) {
+        return 4;
+      }
+      
+      // 角が空いていれば選択
+      const corners = [0, 2, 6, 8];
+      const emptyCorners = corners.filter(i => !board[i]);
+      if (emptyCorners.length > 0) {
+        return emptyCorners[Math.floor(Math.random() * emptyCorners.length)];
+      }
+      
+      // それ以外の場合は空いているマスをランダムに選択
+      const emptyIndexes = [];
+      for (let i = 0; i < 9; i++) {
+        if (!board[i]) {
+          emptyIndexes.push(i);
+        }
+      }
+      
+      if (emptyIndexes.length > 0) {
+        return emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
       }
     }
     
-    if (emptyIndexes.length > 0) {
-      return emptyIndexes[Math.floor(Math.random() * emptyIndexes.length)];
-    }
-    
-    return -1;
+    return bestMove;
   };
 
   return (
