@@ -1,4 +1,18 @@
 // LangChainエージェントを使った最新情報検索機能
+/**
+ * エージェントモードチャットAPIエンドポイント
+ * 
+ * このAPIはLangChainのエージェント機能を使用して、次の機能を提供します：
+ * - 最新情報やニュースの検索（Google Custom SearchまたはSerpAPI経由）
+ * - 現在の日時取得
+ * - より複雑なリクエストの理解と処理
+ * 
+ * 特徴：
+ * - エージェントはツール（検索エンジンなど）を使用して回答を生成できる
+ * - 時事的な情報を求める質問には自動的に検索ツールを使用
+ * - AIの知識だけでなく、現在のインターネット上の情報に基づいた回答が可能
+ * - フォールバックメカニズムと簡易シミュレーションによる堅牢性
+ */
 
 import { NextRequest, NextResponse } from "next/server";
 import { ChatOpenAI } from "@langchain/openai";
@@ -14,7 +28,10 @@ import { getJson } from 'serpapi';
 // デバッグモードの設定
 const DEBUG_MODE = false;
 
-// デバッグログ
+/**
+ * デバッグログ関数
+ * デバッグモードが有効な場合にのみログを出力
+ */
 function debugLog(...args: any[]) {
   if (DEBUG_MODE) {
     console.log('[DEBUG]', ...args);
@@ -28,7 +45,13 @@ const TOOL_TIMEOUT_MS = 30000;
 // Google Custom Searchの設定
 const customsearch = google.customsearch('v1');
 
-// Google検索を実行する関数
+/**
+ * Google検索を実行する関数
+ * Google Custom Search APIを使用して検索を実行し、結果を整形する
+ * @param query 検索クエリ
+ * @param numResults 取得する結果数
+ * @returns 整形された検索結果テキスト
+ */
 async function performGoogleSearch(query: string, numResults: number = 5): Promise<string> {
   try {
     // Google Custom Search APIのキーが設定されているか確認
@@ -97,7 +120,13 @@ interface SerpApiResponse {
   [key: string]: any; // その他のプロパティも許可
 }
 
-// SerpAPIを使った検索（代替手段）
+/**
+ * SerpAPIを使った検索（代替手段）
+ * Google Custom Search APIが使用できない場合の代替検索手段
+ * @param query 検索クエリ
+ * @param numResults 取得する結果数
+ * @returns 整形された検索結果テキスト
+ */
 async function performSerpApiSearch(query: string, numResults: number = 5): Promise<string> {
   try {
     // SerpAPIのキーが設定されているか確認
@@ -152,7 +181,12 @@ async function performSerpApiSearch(query: string, numResults: number = 5): Prom
   }
 }
 
-// シミュレートした検索結果（APIキーがない場合のフォールバック）
+/**
+ * シミュレートした検索結果（APIキーがない場合のフォールバック）
+ * 実際の検索エンジンが使用できない場合のデモ用結果を生成
+ * @param query 検索クエリ
+ * @returns シミュレートされた検索結果テキスト
+ */
 function simulateSearch(query: string): string {
   return `「${query}」の検索結果（シミュレートしたデモ結果）:
       
@@ -175,7 +209,10 @@ function simulateSearch(query: string): string {
 ※注：これはシミュレートされた検索結果です。実際のAPIキーを設定することで、リアルタイムの検索結果が表示されます。`;
 }
 
-// 情報検索ツールの作成
+/**
+ * Web検索ツール
+ * 現在の情報やニュースを検索するためのツール
+ */
 const websearchTool = new DynamicStructuredTool({
   name: "web_search",
   description: "最新の情報をウェブで検索するツール。現在の時事情報やニュースを調べる時に使用します。",
@@ -225,7 +262,10 @@ const websearchTool = new DynamicStructuredTool({
   },
 });
 
-// 日時確認ツールの作成
+/**
+ * 日時確認ツール
+ * 現在の日付と時刻を取得するためのツール
+ */
 const currentDateTool = new DynamicStructuredTool({
   name: "get_current_date",
   description: "現在の日付と時刻を取得するツール。",
@@ -244,7 +284,12 @@ const currentDateTool = new DynamicStructuredTool({
   },
 });
 
-// エージェントの設定を作成
+/**
+ * エージェントを作成する関数
+ * システムプロンプトを元にツールを使用できるエージェントを作成
+ * @param systemPrompt エージェントの動作を定義するシステムプロンプト
+ * @returns エージェント関数（メッセージを受け取り応答を返す）
+ */
 const createAgent = async (systemPrompt: string) => {
   debugLog('Creating agent with system prompt:', systemPrompt.substring(0, 50) + '...');
   
@@ -260,7 +305,10 @@ const createAgent = async (systemPrompt: string) => {
     const tools = [websearchTool, currentDateTool];
     debugLog('Tools initialized:', tools.map(t => t.name));
 
-    // エージェントのプロンプトテンプレート
+    /**
+     * エージェントのプロンプトテンプレート
+     * システムプロンプトにツールの使用方法と指示を追加
+     */
     const agentPrompt = ChatPromptTemplate.fromMessages([
       ["system", `${systemPrompt}
 
@@ -298,7 +346,12 @@ const createAgent = async (systemPrompt: string) => {
       ["human", "{input}"],
     ]);
 
-    // エージェントの応答を解析する関数
+    /**
+     * エージェントの応答を解析する関数
+     * ツールの使用をパターンマッチングで検出
+     * @param response モデルからの応答テキスト
+     * @returns ツール使用情報または直接の応答
+     */
     const parseAgentResponse = (response: string) => {
       // ツール使用の検出
       debugLog('Raw response to parse:', response.substring(0, 100) + '...');
@@ -351,7 +404,13 @@ const createAgent = async (systemPrompt: string) => {
       return { useTool: false, response };
     };
 
-    // ツールを実行する関数
+    /**
+     * ツールを実行する関数
+     * 指定されたツールを名前とパラメータに基づいて実行
+     * @param toolName 使用するツール名
+     * @param params ツールに渡すパラメータ
+     * @returns ツールの実行結果
+     */
     const executeTool = async (toolName: string, params: Record<string, string>) => {
       try {
         if (toolName === "web_search" && params && params.query) {
@@ -585,7 +644,12 @@ const createAgent = async (systemPrompt: string) => {
   }
 };
 
-// POSTリクエストの処理
+/**
+ * POSTエンドポイント - エージェントモードでメッセージを処理
+ * 時事的・最新の情報が必要な質問に検索ツールを使って回答
+ * @param req リクエスト（messages配列を含む）
+ * @returns エージェントの応答をJSON形式で返す
+ */
 export async function POST(req: NextRequest) {
   // リクエストタイムアウト
   const controller = new AbortController();
@@ -631,7 +695,10 @@ export async function POST(req: NextRequest) {
       debugLog(`Limited message history from ${messages.length} to ${limitedMessages.length}`);
     }
     
-    // システムプロンプト
+    /**
+     * エージェント用のシステムプロンプト
+     * 応答スタイルとツール使用の指示を含む
+     */
     const systemPrompt = `あなたは「落ち着いた雰囲気」で「短文・断定を避けた言い回し」を使うアシスタントです。
 一人称は「俺」であまり感情を出しすぎない文体を使います。
 最新の情報を調べる必要がある時は、必ず最新情報検索ツールを使ってください。

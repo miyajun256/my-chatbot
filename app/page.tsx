@@ -6,17 +6,35 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
 
+/**
+ * チャットメッセージの型定義
+ * role: 'user'（ユーザーメッセージ）または'assistant'（AIの応答）
+ * content: メッセージ内容のテキスト
+ */
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
+/**
+ * 言語モデルの選択肢の型定義
+ * id: モデルのID（APIで使用する識別子）
+ * name: UI上で表示されるモデル名
+ */
 interface ModelOption {
   id: string;
   name: string;
 }
 
-// マルバツゲームの状態を表す型
+/**
+ * マルバツゲームの状態を表す型
+ * board: ゲーム盤面（9マス）
+ * isPlayerTurn: プレイヤーのターンかどうか
+ * gameOver: ゲームが終了したかどうか
+ * winner: 勝者（'○'、'×'、またはnull）
+ * playerMarks: プレイヤーが使用したマークの数
+ * aiMarks: AIが使用したマークの数
+ */
 interface TicTacToeState {
   board: Array<string | null>;
   isPlayerTurn: boolean;
@@ -26,7 +44,15 @@ interface TicTacToeState {
   aiMarks: number;
 }
 
-// オセロゲームの状態を表す型
+/**
+ * オセロゲームの状態を表す型
+ * board: 6x6のゲーム盤面
+ * currentPlayer: 現在のプレイヤー（'black'または'white'）
+ * gameOver: ゲームが終了したかどうか
+ * blackCount: 黒石の数
+ * whiteCount: 白石の数
+ * skipTurn: ターンをスキップするかどうか
+ */
 interface OthelloState {
   board: string[][];
   currentPlayer: 'black' | 'white';
@@ -36,16 +62,30 @@ interface OthelloState {
   skipTurn: boolean;
 }
 
+/**
+ * メインのチャットボットコンポーネント
+ * 機能:
+ * - OpenAI APIを使ったチャット対話
+ * - 複数の言語モデルの切り替え
+ * - 最新情報検索機能（エージェントモード）
+ * - ローカルストレージを使った会話履歴の保存
+ * - マルバツゲームとオセロゲーム（「マルバツ」「オセロ」と入力するとプレイ可能）
+ */
 export default function MyChatbot() {
+  // チャット関連の状態管理
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "よう。何か聞きたいことある？" }]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [agentMode, setAgentMode] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState(""); // ユーザー入力テキスト
+  const [loading, setLoading] = useState(false); // API通信中のローディング状態
+  const [loadingModels, setLoadingModels] = useState(true); // モデル一覧読み込み中の状態
+  const [error, setError] = useState<string | null>(null); // エラーメッセージ
+  
+  // モデル関連の状態管理
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]); // 利用可能なモデル一覧
+  const [selectedModel, setSelectedModel] = useState<string>(""); // 選択中のモデル
+  const [agentMode, setAgentMode] = useState<boolean>(false); // 最新情報検索モード（ON/OFF）
+  
+  // DOM参照
+  const messagesEndRef = useRef<HTMLDivElement>(null); // 自動スクロール用の参照
   
   // マルバツゲームの状態
   const [showGame, setShowGame] = useState(false);
@@ -69,7 +109,10 @@ export default function MyChatbot() {
     skipTurn: false
   });
 
-  // モデル一覧を取得
+  /**
+   * モデル一覧をAPIから取得
+   * アプリ起動時に一度だけ実行される
+   */
   useEffect(() => {
     const fetchModels = async () => {
       try {
@@ -139,7 +182,9 @@ export default function MyChatbot() {
     }
   }, [messages]);
 
-  // 新しいメッセージが追加されたら自動スクロール
+  /**
+   * 新しいメッセージが追加されたら自動スクロール
+   */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -148,7 +193,10 @@ export default function MyChatbot() {
     scrollToBottom();
   }, [messages]);
 
-  // モデル情報表示用
+  /**
+   * モデルIDに基づいてバッジの色を取得
+   * UI表示用の補助関数
+   */
   const getModelBadgeColor = (modelId: string) => {
     if (!modelId) return "";
     if (modelId.includes("gpt-4")) return "bg-green-500";
@@ -177,7 +225,10 @@ export default function MyChatbot() {
     }
   }, [showOthello, othello.currentPlayer, othello.gameOver, othello.board]);
 
-  // ゲーム表示切り替え（マルバツ）
+  /**
+   * マルバツゲームの表示切り替え
+   * ゲームが表示されていなければ初期化して表示、表示中なら非表示にする
+   */
   const toggleGame = () => {
     if (!showGame) {
       setShowGame(true);
@@ -188,7 +239,10 @@ export default function MyChatbot() {
     }
   };
   
-  // マルバツゲームをリセット
+  /**
+   * マルバツゲームの初期化
+   * ランダムに最初のAIの手を決定する
+   */
   const resetGame = () => {
     // ゲームの状態を初期化
     const newBoard = Array(9).fill(null);
@@ -208,7 +262,10 @@ export default function MyChatbot() {
     });
   };
 
-  // ゲーム切り替え（オセロ）
+  /**
+   * オセロゲームの表示切り替え
+   * ゲームが表示されていなければ初期化して表示、表示中なら非表示にする
+   */
   const toggleOthello = () => {
     if (!showOthello) {
       setShowOthello(true);
@@ -219,7 +276,10 @@ export default function MyChatbot() {
     }
   };
 
-  // オセロゲームの初期化
+  /**
+   * オセロゲームの初期化
+   * 中央に初期配置の石を設定する
+   */
   const initOthelloBoard = () => {
     // 6x6の盤面を作成
     const newBoard = Array(6).fill(null).map(() => Array(6).fill(''));
@@ -252,7 +312,13 @@ export default function MyChatbot() {
     });
   };
   
-  // 合法手を見つける（オセロ）
+  /**
+   * オセロの合法手を検索
+   * 指定したプレイヤーが石を置ける位置の座標リストを返す
+   * @param board 現在の盤面
+   * @param player プレイヤー（'black'または'white'）
+   * @returns 合法手の座標リスト [row, col][]
+   */
   const findLegalMoves = (board: string[][], player: 'black' | 'white'): [number, number][] => {
     const opponent = player === 'black' ? 'white' : 'black';
     const legalMoves: [number, number][] = [];
@@ -295,7 +361,14 @@ export default function MyChatbot() {
     return legalMoves;
   };
   
-  // 石を置いたときに裏返る石を計算
+  /**
+   * 石を置いたときに裏返される石を計算
+   * @param board 現在の盤面
+   * @param row 石を置く行
+   * @param col 石を置く列
+   * @param player 現在のプレイヤー（'black'または'white'）
+   * @returns 裏返される石の座標リスト [row, col][]
+   */
   const getFlippedDiscs = (board: string[][], row: number, col: number, player: 'black' | 'white'): [number, number][] => {
     const opponent = player === 'black' ? 'white' : 'black';
     const flipped: [number, number][] = [];
@@ -328,7 +401,12 @@ export default function MyChatbot() {
     return flipped;
   };
   
-  // オセロの石を置く
+  /**
+   * オセロの石を置く処理
+   * プレイヤー（黒）の手を処理し、石を裏返して次のターンに進む
+   * @param row 石を置く行
+   * @param col 石を置く列
+   */
   const placeDisc = (row: number, col: number) => {
     // ゲーム終了時またはすでに石がある場合は何もしない
     if (othello.gameOver || othello.board[row][col] !== '') return;
@@ -406,7 +484,11 @@ export default function MyChatbot() {
     // useEffectがAIの手を自動的に実行するので、ここでのmakeAIMove呼び出しは不要
   };
   
-  // AIの手を計算（オセロ）
+  /**
+   * AIの手を計算（オセロ）
+   * AI（白）の最適な手を評価関数とミニマックス探索で決定する
+   * @param currentBoard 現在の盤面
+   */
   const makeAIMove = (currentBoard: string[][]) => {
     // ゲームがすでに終了している場合は何もしない
     if (othello.gameOver) return;
@@ -439,7 +521,13 @@ export default function MyChatbot() {
     let bestScore = -Infinity;
     let bestMove: [number, number] = [-1, -1];
     
-    // ボード評価関数（静的評価）
+    /**
+     * ボード評価関数（静的評価）
+     * 石の配置に基づいて盤面の優劣を数値化する
+     * @param board 評価する盤面
+     * @param player 評価するプレイヤー
+     * @returns スコア（高いほど良い盤面）
+     */
     const evaluateBoard = (board: string[][], player: 'black' | 'white'): number => {
       // 盤面の位置価値マトリックス（値が高いほど良い位置）
       const positionValue = [
@@ -729,9 +817,27 @@ export default function MyChatbot() {
     }
   }, [showOthello]);
 
+  /**
+   * メッセージ送信処理
+   * ユーザー入力をAPIに送信し、AIの応答を取得して表示する
+   */
   const sendMessage = async () => {
     if (input.trim() === "") return;
     if (loading) return;
+    
+    // 特定のキーワードを検出したらゲームを起動
+    const lowerInput = input.toLowerCase();
+    if (lowerInput === "マルバツ" || lowerInput === "まるばつ" || lowerInput === "〇×") {
+      toggleGame();
+      setInput("");
+      return;
+    }
+    
+    if (lowerInput === "オセロ" || lowerInput === "おせろ" || lowerInput === "リバーシ") {
+      toggleOthello();
+      setInput("");
+      return;
+    }
     
     // ユーザーメッセージを追加
     const userMessage: Message = { role: "user", content: input };
@@ -779,7 +885,10 @@ export default function MyChatbot() {
     }
   };
 
-  // 会話履歴をクリアする
+  /**
+   * 会話履歴をクリアする
+   * 初期メッセージのみ残して他を削除
+   */
   const clearChat = () => {
     const initialMessage: Message[] = [{ 
       role: "assistant", 
@@ -790,7 +899,10 @@ export default function MyChatbot() {
     setError(null);
   };
 
-  // Enterキーで送信
+  /**
+   * Enterキーで送信
+   * Shift+Enterでは改行
+   */
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -1841,6 +1953,87 @@ export default function MyChatbot() {
             </div>
           </div>
 
+          {/* マルバツゲーム */}
+          {showGame && (
+            <div className="game-container">
+              <div className="game-status">
+                {tictactoe.gameOver ? (
+                  <div className="game-result">
+                    {tictactoe.winner === "○" ? "あなたの勝ち！" : 
+                     tictactoe.winner === "×" ? "AIの勝ち！" : "引き分け"}
+                  </div>
+                ) : (
+                  <div className="turn-indicator">
+                    {tictactoe.isPlayerTurn ? "あなたの番です" : "AIの番です..."}
+                  </div>
+                )}
+                <div className="mark-counts">
+                  <span className="mark-count">あなた: {tictactoe.playerMarks}/3 マーク</span>
+                  <span className="mark-count">AI: {tictactoe.aiMarks}/3 マーク</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  3つのマークを使った後は、自分のマークを動かして遊んでね
+                </p>
+              </div>
+              
+              <div className="game-board">
+                {tictactoe.board.map((cell, index) => (
+                  <div
+                    key={index}
+                    className={`game-cell ${cell ? "marked" : ""}`}
+                    onClick={() => handleCellClick(index)}
+                  >
+                    {cell}
+                  </div>
+                ))}
+              </div>
+              
+              <button 
+                onClick={toggleGame}
+                className="game-button"
+              >
+                ゲームを閉じる
+              </button>
+            </div>
+          )}
+          
+          {/* オセロゲーム */}
+          {showOthello && (
+            <div className="game-container">
+              <div className="game-status">
+                {othello.gameOver ? (
+                  <div className="game-result">
+                    {othello.blackCount > othello.whiteCount ? "あなたの勝ち！" : 
+                     othello.blackCount < othello.whiteCount ? "AIの勝ち！" : "引き分け"}
+                  </div>
+                ) : (
+                  <div className="turn-indicator">
+                    {othello.currentPlayer === 'black' ? "あなたの番です" : "AIの番です..."}
+                    {othello.skipTurn && " (相手のスキップ)"}
+                  </div>
+                )}
+                
+                <div className="disc-counts">
+                  <span className="disc-count">黒 (あなた): {othello.blackCount}</span>
+                  <span className="disc-count">白 (AI): {othello.whiteCount}</span>
+                </div>
+              </div>
+              
+              <div className="othello-board">
+                {othello.board.map((row, rowIndex) => (
+                  row.map((_, colIndex) => renderOthelloCell(rowIndex, colIndex))
+                ))}
+              </div>
+              
+              <button 
+                onClick={toggleOthello}
+                className="game-button"
+              >
+                ゲームを閉じる
+              </button>
+            </div>
+          )}
+
           {/* チャットウィンドウ */}
           <div className="h-[500px] overflow-y-auto p-4 bg-gray-50">
             <div className="flex flex-col gap-4">
@@ -1888,7 +2081,7 @@ export default function MyChatbot() {
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               rows={2}
-              placeholder="メッセージを入力...「マルバツ」と入力するとゲームが始まるよ"
+              placeholder="メッセージを入力...「マルバツ」もしくは「オセロ」と入力するとゲームが始まるよ"
               disabled={loading}
             />
             <button 
