@@ -41,7 +41,6 @@ export default function MyChatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingModels, setLoadingModels] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("");
@@ -98,22 +97,8 @@ export default function MyChatbot() {
 
   // ダークモード設定の読み込み
   useEffect(() => {
-    const savedDarkMode = localStorage.getItem("darkMode");
-    if (savedDarkMode === "true") {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
+    // この機能を削除
   }, []);
-
-  // ダークモード設定の保存
-  useEffect(() => {
-    localStorage.setItem("darkMode", darkMode.toString());
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [darkMode]);
 
   // 選択中のモデルを保存
   useEffect(() => {
@@ -770,7 +755,6 @@ export default function MyChatbot() {
         body: JSON.stringify({
           messages: messages.concat(userMessage),
           model,
-          darkMode,
         }),
       });
       
@@ -799,9 +783,7 @@ export default function MyChatbot() {
   const clearChat = () => {
     const initialMessage: Message[] = [{ 
       role: "assistant", 
-      content: darkMode 
-        ? "よう。また話すのか。何か用？" 
-        : "よう。また話そうぜ。何か聞きたいことある？" 
+      content: "よう。また話そうぜ。何か聞きたいことある？"
     }];
     setMessages(initialMessage);
     localStorage.setItem("chatHistory", JSON.stringify(initialMessage));
@@ -818,7 +800,7 @@ export default function MyChatbot() {
 
   // ダークモード切り替え
   const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
+    // この機能を削除
   };
 
   // モデル選択の変更
@@ -1819,16 +1801,16 @@ export default function MyChatbot() {
         }
       `}</style>
     
-      <main className={`flex min-h-screen flex-col p-2 sm:p-6 md:p-24 transition-colors duration-300 ${darkMode ? "dark bg-slate-900 text-white" : "bg-white text-black"}`}>
-        <div className={`flex flex-col w-full max-w-4xl mx-auto rounded-lg border shadow-lg overflow-hidden ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-gray-200"}`}>
-          <div className={`flex justify-between items-center p-4 border-b ${darkMode ? "border-slate-700" : "border-gray-200"}`}>
+      <main className="flex min-h-screen flex-col p-2 sm:p-6 md:p-24 transition-colors duration-300 bg-white text-black">
+        <div className="flex flex-col w-full max-w-4xl mx-auto rounded-lg border shadow-lg overflow-hidden bg-white border-gray-200">
+          <div className="flex justify-between items-center p-4 border-b border-gray-200">
             <h1 className="text-2xl font-semibold">マイチャットボット</h1>
             <div className="flex gap-2 items-center">
               {!loadingModels && (
                 <select
                   value={selectedModel}
                   onChange={handleModelChange}
-                  className={`text-sm p-1 rounded border ${darkMode ? "bg-slate-700 text-white border-slate-600" : "bg-white text-black border-gray-300"}`}
+                  className="text-sm p-1 rounded border bg-white text-black border-gray-300"
                 >
                   {modelOptions.map(option => (
                     <option key={option.id} value={option.id}>
@@ -1844,36 +1826,15 @@ export default function MyChatbot() {
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   agentMode 
                     ? 'bg-green-600 hover:bg-green-700 text-white' 
-                    : darkMode 
-                      ? 'bg-slate-700 hover:bg-slate-600 text-white' 
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
                 }`}
               >
                 {agentMode ? '最新情報検索: ON' : '最新情報検索: OFF'}
               </button>
               
               <button
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-full transition-colors ${
-                  darkMode 
-                    ? 'hover:bg-slate-700 text-yellow-300' 
-                    : 'hover:bg-gray-200 text-gray-700'
-                }`}
-                aria-label={darkMode ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-              >
-                {darkMode ? (
-                  <span role="img" aria-hidden="true" className="text-lg">☀️</span>
-                ) : (
-                  <span role="img" aria-hidden="true" className="text-lg">🌙</span>
-                )}
-              </button>
-              <button
                 onClick={clearChat}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  darkMode 
-                    ? 'bg-slate-700 hover:bg-slate-600 text-white' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors bg-gray-200 hover:bg-gray-300 text-gray-700"
               >
                 クリア
               </button>
@@ -1881,7 +1842,7 @@ export default function MyChatbot() {
           </div>
 
           {/* チャットウィンドウ */}
-          <div className={`h-[500px] overflow-y-auto p-4 ${darkMode ? "bg-slate-800" : "bg-gray-50"}`}>
+          <div className="h-[500px] overflow-y-auto p-4 bg-gray-50">
             <div className="flex flex-col gap-4">
               {messages.map((msg, i) => (
                 <div 
@@ -1892,9 +1853,7 @@ export default function MyChatbot() {
                     className={`max-w-[75%] rounded-lg px-4 py-2 ${
                       msg.role === "user" 
                         ? "bg-blue-600 text-white rounded-br-none" 
-                        : darkMode 
-                          ? "bg-slate-700 text-white rounded-bl-none" 
-                          : "bg-gray-200 text-gray-800 rounded-bl-none"
+                        : "bg-gray-200 text-gray-800 rounded-bl-none"
                     }`}
                   >
                     {msg.content}
@@ -1904,9 +1863,7 @@ export default function MyChatbot() {
               
               {loading && (
                 <div className="flex justify-start">
-                  <div className={`max-w-[75%] rounded-lg px-4 py-2 rounded-bl-none ${
-                    darkMode ? "bg-slate-700 text-white" : "bg-gray-200 text-gray-800"
-                  }`}>
+                  <div className="max-w-[75%] rounded-lg px-4 py-2 rounded-bl-none bg-gray-200 text-gray-800">
                     <div className="flex items-center">
                       <span>考え中</span>
                       <div className="flex items-center ml-2">
@@ -1924,13 +1881,9 @@ export default function MyChatbot() {
           </div>
           
           {/* 入力エリア */}
-          <div className={`p-4 flex gap-2 border-t ${darkMode ? "border-slate-700 bg-slate-800" : "border-gray-200 bg-gray-50"}`}>
+          <div className="p-4 flex gap-2 border-t border-gray-200 bg-gray-50">
             <textarea
-              className={`flex-1 p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 ${
-                darkMode 
-                  ? "bg-slate-700 border-slate-600 text-white focus:ring-blue-500" 
-                  : "bg-white border-gray-300 text-black focus:ring-blue-400"
-              }`}
+              className="flex-1 p-2 rounded-lg border resize-none focus:outline-none focus:ring-2 bg-white border-gray-300 text-black focus:ring-blue-400"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}

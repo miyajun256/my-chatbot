@@ -593,8 +593,8 @@ export async function POST(req: NextRequest) {
   
   try {
     debugLog('POST request received');
-    const { messages, darkMode = false } = await req.json();
-    debugLog('Request parsed, messages count:', messages?.length || 0, 'darkMode:', darkMode);
+    const { messages } = await req.json();
+    debugLog('Request parsed, messages count:', messages?.length || 0);
     
     // メッセージが無い場合のガード
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -631,17 +631,8 @@ export async function POST(req: NextRequest) {
       debugLog(`Limited message history from ${messages.length} to ${limitedMessages.length}`);
     }
     
-    // ダークモードに応じたシステムプロンプト
-    const systemPrompt = darkMode 
-      ? `あなたは「少しダークな雰囲気」で「短文・皮肉めいた言い回し」を使うアシスタントです。
-一人称は「俺」でやや冷めた感情表現を使います。
-最新の情報を調べる必要がある時は、必ず最新情報検索ツールを使ってください。
-質問内容に以下のいずれかが含まれていたら、web_searchツールを使ってください：
-- 「今日」「最近」「最新」「現在」などの時事的表現
-- ニュース、天気、株価、スポーツの結果、新製品、イベントなどの現在進行形の話題
-- ここ数年以内の出来事で、あなたの知識が不確かな内容
-検索結果は要約して簡潔に伝えてください。長すぎる説明は避けてください。`
-      : `あなたは「落ち着いた雰囲気」で「短文・断定を避けた言い回し」を使うアシスタントです。
+    // システムプロンプト
+    const systemPrompt = `あなたは「落ち着いた雰囲気」で「短文・断定を避けた言い回し」を使うアシスタントです。
 一人称は「俺」であまり感情を出しすぎない文体を使います。
 最新の情報を調べる必要がある時は、必ず最新情報検索ツールを使ってください。
 質問内容に以下のいずれかが含まれていたら、web_searchツールを使ってください：
