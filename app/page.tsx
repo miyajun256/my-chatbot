@@ -63,13 +63,30 @@ interface OthelloState {
 }
 
 /**
+ * ナポレオンゲームの状態を表す型
+ */
+interface NapoleonState {
+  playerHand: string[];  // プレイヤーの手札
+  aiHand: string[];      // AIの手札
+  tableCards: string[];  // 場に出ているカード
+  currentPlayer: 'player' | 'ai'; // 現在の手番
+  playerScore: number;   // プレイヤーのスコア
+  aiScore: number;       // AIのスコア
+  round: number;         // 現在のラウンド
+  message: string;       // ゲームメッセージ
+  gameOver: boolean;     // ゲーム終了フラグ
+  winner: 'player' | 'ai' | null; // 勝者
+  selectedCard: number | null; // プレイヤーが選択したカードのインデックス
+}
+
+/**
  * メインのチャットボットコンポーネント
  * 機能:
  * - OpenAI APIを使ったチャット対話
  * - 複数の言語モデルの切り替え
  * - 最新情報検索機能（エージェントモード）
  * - ローカルストレージを使った会話履歴の保存
- * - マルバツゲームとオセロゲーム（「マルバツ」「オセロ」と入力するとプレイ可能）
+ * - マルバツゲーム、オセロゲーム、ナポレオンゲーム（「マルバツ」「オセロ」「ナポレオン」と入力するとプレイ可能）
  */
 export default function MyChatbot() {
   // チャット関連の状態管理
@@ -107,6 +124,22 @@ export default function MyChatbot() {
     blackCount: 0,
     whiteCount: 0,
     skipTurn: false
+  });
+  
+  // ナポレオンゲームの状態
+  const [showNapoleon, setShowNapoleon] = useState(false);
+  const [napoleon, setNapoleon] = useState<NapoleonState>({
+    playerHand: [],
+    aiHand: [],
+    tableCards: [],
+    currentPlayer: 'player',
+    playerScore: 0,
+    aiScore: 0,
+    round: 1,
+    message: "ゲームを開始します。あなたからカードを出してください。",
+    gameOver: false,
+    winner: null,
+    selectedCard: null
   });
 
   /**
@@ -233,6 +266,7 @@ export default function MyChatbot() {
     if (!showGame) {
       setShowGame(true);
       setShowOthello(false);
+      setShowNapoleon(false);
       resetGame();
     } else {
       setShowGame(false);
@@ -270,10 +304,69 @@ export default function MyChatbot() {
     if (!showOthello) {
       setShowOthello(true);
       setShowGame(false);
+      setShowNapoleon(false);
       initOthelloBoard();
     } else {
       setShowOthello(false);
     }
+  };
+
+  /**
+   * ナポレオンゲームの表示切り替え
+   * ゲームが表示されていなければ初期化して表示、表示中なら非表示にする
+   */
+  const toggleNapoleon = () => {
+    if (!showNapoleon) {
+      setShowNapoleon(true);
+      setShowGame(false);
+      setShowOthello(false);
+      initNapoleonGame();
+    } else {
+      setShowNapoleon(false);
+    }
+  };
+
+  /**
+   * ナポレオンゲームの初期化
+   * デッキを作成してシャッフルし、手札を配る
+   */
+  const initNapoleonGame = () => {
+    // トランプのデッキを作成
+    const suits = ['♠', '♥', '♦', '♣'];
+    const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    let deck: string[] = [];
+    
+    // デッキ作成
+    for (const suit of suits) {
+      for (const value of values) {
+        deck.push(`${suit}${value}`);
+      }
+    }
+    
+    // デッキをシャッフル
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    
+    // 手札を配る
+    const playerHand = deck.splice(0, 5);
+    const aiHand = deck.splice(0, 5);
+    
+    // ゲーム状態を初期化
+    setNapoleon({
+      playerHand,
+      aiHand,
+      tableCards: [],
+      currentPlayer: 'player',
+      playerScore: 0,
+      aiScore: 0,
+      round: 1,
+      message: "あなたのターンです。カードを選んでください。",
+      gameOver: false,
+      winner: null,
+      selectedCard: null
+    });
   };
 
   /**
@@ -839,6 +932,12 @@ export default function MyChatbot() {
       return;
     }
     
+    if (lowerInput === "ナポレオン" || lowerInput === "なぽれおん") {
+      toggleNapoleon();
+      setInput("");
+      return;
+    }
+    
     // ユーザーメッセージを追加
     const userMessage: Message = { role: "user", content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -1321,6 +1420,128 @@ export default function MyChatbot() {
     }
     
     return bestMove;
+  };
+
+  // ナポレオンゲームのカード選択処理
+  const selectCard = (index: number) => {
+    if (napoleon.currentPlayer !== 'player' || napoleon.gameOver) return;
+    
+    setNapoleon(prev => ({
+      ...prev,
+      selectedCard: index
+    }));
+  };
+  
+  // ナポレオンゲームのカードプレイ処理
+  const playCard = () => {
+    if (napoleon.selectedCard === null || napoleon.currentPlayer !== 'player' || napoleon.gameOver) return;
+    
+    // プレイヤーが選んだカードを場に出す
+    const newPlayerHand = [...napoleon.playerHand];
+    const playedCard = newPlayerHand.splice(napoleon.selectedCard, 1)[0];
+    const newTableCards = [...napoleon.tableCards, playedCard];
+    
+    // AIのターンに移行
+    setNapoleon(prev => ({
+      ...prev,
+      playerHand: newPlayerHand,
+      tableCards: newTableCards,
+      currentPlayer: 'ai',
+      selectedCard: null,
+      message: "AIのターンです..."
+    }));
+    
+    // AIが少し考えた後にカードを出す
+    setTimeout(() => aiPlayCard(newPlayerHand, newTableCards), 1000);
+  };
+  
+  // AIがカードを出す処理
+  const aiPlayCard = (playerHand: string[], tableCards: string[]) => {
+    if (napoleon.gameOver) return;
+    
+    // AIの手札から適切なカードを選択（ここではランダム）
+    const aiCardIndex = Math.floor(Math.random() * napoleon.aiHand.length);
+    const newAiHand = [...napoleon.aiHand];
+    const playedCard = newAiHand.splice(aiCardIndex, 1)[0];
+    const newTableCards = [...tableCards, playedCard];
+    
+    // ラウンド終了判定
+    const roundWinner = determineRoundWinner(newTableCards);
+    let newPlayerScore = napoleon.playerScore;
+    let newAiScore = napoleon.aiScore;
+    let newMessage = "";
+    let nextPlayer: 'player' | 'ai' = 'player';
+    
+    if (roundWinner === 'player') {
+      newPlayerScore += 1;
+      newMessage = "あなたがこのラウンドに勝ちました！";
+    } else if (roundWinner === 'ai') {
+      newAiScore += 1;
+      newMessage = "AIがこのラウンドに勝ちました。";
+      nextPlayer = 'ai'; // AIが勝った場合、次もAIからスタート
+    } else {
+      newMessage = "このラウンドは引き分けです。";
+    }
+    
+    // ゲーム終了判定
+    const isGameOver = playerHand.length === 0 && newAiHand.length === 0;
+    let gameWinner: 'player' | 'ai' | null = null;
+    
+    if (isGameOver) {
+      if (newPlayerScore > newAiScore) {
+        gameWinner = 'player';
+        newMessage = "ゲーム終了！あなたの勝ちです！";
+      } else if (newPlayerScore < newAiScore) {
+        gameWinner = 'ai';
+        newMessage = "ゲーム終了！AIの勝ちです。";
+      } else {
+        newMessage = "ゲーム終了！引き分けです。";
+      }
+    }
+    
+    // 新しいラウンドを開始
+    const newRound = isGameOver ? napoleon.round : napoleon.round + 1;
+    
+    setNapoleon(prev => ({
+      ...prev,
+      aiHand: newAiHand,
+      tableCards: isGameOver ? newTableCards : [],
+      currentPlayer: nextPlayer,
+      playerScore: newPlayerScore,
+      aiScore: newAiScore,
+      round: newRound,
+      message: newMessage,
+      gameOver: isGameOver,
+      winner: gameWinner
+    }));
+  };
+  
+  // ラウンドの勝者を決定
+  const determineRoundWinner = (tableCards: string[]): 'player' | 'ai' | 'draw' => {
+    if (tableCards.length < 2) return 'draw';
+    
+    const playerCard = tableCards[tableCards.length - 2];
+    const aiCard = tableCards[tableCards.length - 1];
+    
+    const playerValue = getCardValue(playerCard);
+    const aiValue = getCardValue(aiCard);
+    
+    if (playerValue > aiValue) return 'player';
+    if (playerValue < aiValue) return 'ai';
+    return 'draw';
+  };
+  
+  // カードの値を数値に変換
+  const getCardValue = (card: string): number => {
+    const value = card.slice(1); // 先頭の記号を除いた部分を取得
+    
+    switch (value) {
+      case 'A': return 14;
+      case 'K': return 13;
+      case 'Q': return 12;
+      case 'J': return 11;
+      default: return parseInt(value);
+    }
   };
 
   return (
@@ -1898,6 +2119,22 @@ export default function MyChatbot() {
             gap: 0.5rem;
             align-items: center;
           }
+          
+          .playing-card {
+            width: 50px;
+            height: 75px;
+            font-size: 1rem;
+          }
+          
+          .card-back {
+            width: 50px;
+            height: 75px;
+          }
+          
+          .card-back .inner {
+            width: 40px;
+            height: 65px;
+          }
         }
 
         @media (max-width: 400px) {
@@ -1910,6 +2147,86 @@ export default function MyChatbot() {
           .game-cell {
             font-size: 1.75rem;
           }
+        }
+
+        /* ナポレオンゲーム用のスタイル */
+        .napoleon-container {
+          max-width: 500px;
+        }
+
+        .playing-card {
+          width: 60px;
+          height: 90px;
+          background-color: white;
+          border-radius: 5px;
+          border: 1px solid #e5e7eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.25rem;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s;
+        }
+
+        .playing-card.selected {
+          transform: translateY(-10px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+          border: 2px solid #3b82f6;
+        }
+
+        .playing-card.selectable {
+          cursor: pointer;
+        }
+
+        .playing-card.selectable:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-back {
+          width: 60px;
+          height: 90px;
+          background-color: #2563eb;
+          border-radius: 5px;
+          border: 1px solid #e5e7eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .card-back .inner {
+          width: 50px;
+          height: 80px;
+          border: 2px solid rgba(255, 255, 255, 0.4);
+          border-radius: 3px;
+          background: repeating-linear-gradient(
+            45deg,
+            #3b82f6,
+            #3b82f6 10px,
+            #2563eb 10px,
+            #2563eb 20px
+          );
+        }
+
+        .play-button {
+          padding: 0.5rem 1.25rem;
+          border-radius: 0.5rem;
+          background: linear-gradient(to right, #10b981, #059669);
+          color: white;
+          font-weight: 500;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+          margin-bottom: 1rem;
+        }
+
+        .play-button:hover {
+          background: linear-gradient(to right, #059669, #047857);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
       `}</style>
     
@@ -2034,6 +2351,114 @@ export default function MyChatbot() {
             </div>
           )}
 
+          {/* ナポレオンゲーム */}
+          {showNapoleon && (
+            <div className="game-container napoleon-container">
+              <h2 className="text-xl font-bold mb-2">ナポレオン</h2>
+              
+              <div className="game-status mb-4">
+                {napoleon.gameOver ? (
+                  <div className="game-result">
+                    {napoleon.winner === "player" ? "あなたの勝ち！" : 
+                     napoleon.winner === "ai" ? "AIの勝ち！" : "引き分け"}
+                  </div>
+                ) : (
+                  <div className="turn-indicator">
+                    {napoleon.currentPlayer === 'player' ? "あなたの番です" : "AIの番です..."}
+                  </div>
+                )}
+                
+                <div className="flex justify-between px-4 mt-2">
+                  <span className="font-semibold">ラウンド: {napoleon.round}</span>
+                  <div className="score-board">
+                    <span className="mr-4">あなた: {napoleon.playerScore}</span>
+                    <span>AI: {napoleon.aiScore}</span>
+                  </div>
+                </div>
+                
+                <div className="mt-2 text-center text-sm text-gray-600">
+                  {napoleon.message}
+                </div>
+              </div>
+              
+              {/* AIの手札（伏せて表示） */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 mb-1">AIの手札:</div>
+                <div className="flex justify-center gap-2">
+                  {napoleon.aiHand.map((_, index) => (
+                    <div key={index} className="card-back">
+                      <div className="inner"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 場のカード */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 mb-1">場のカード:</div>
+                <div className="flex justify-center gap-2 min-h-[100px] items-center">
+                  {napoleon.tableCards.length > 0 ? (
+                    napoleon.tableCards.map((card, index) => (
+                      <div 
+                        key={index} 
+                        className={`playing-card ${card.includes('♥') || card.includes('♦') ? 'text-red-600' : ''}`}
+                      >
+                        {card}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">カードがありません</div>
+                  )}
+                </div>
+              </div>
+              
+              {/* プレイヤーの手札 */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-600 mb-1">あなたの手札:</div>
+                <div className="flex justify-center gap-2">
+                  {napoleon.playerHand.map((card, index) => (
+                    <div 
+                      key={index} 
+                      className={`playing-card ${card.includes('♥') || card.includes('♦') ? 'text-red-600' : ''} 
+                                 ${napoleon.selectedCard === index ? 'selected' : ''} 
+                                 ${napoleon.currentPlayer === 'player' && !napoleon.gameOver ? 'selectable' : ''}`}
+                      onClick={() => napoleon.currentPlayer === 'player' && !napoleon.gameOver ? selectCard(index) : null}
+                    >
+                      {card}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* プレイボタン */}
+              {napoleon.currentPlayer === 'player' && napoleon.selectedCard !== null && !napoleon.gameOver && (
+                <button 
+                  onClick={playCard}
+                  className="play-button"
+                >
+                  カードを出す
+                </button>
+              )}
+              
+              {/* ゲーム終了時のリスタートボタン */}
+              {napoleon.gameOver && (
+                <button 
+                  onClick={initNapoleonGame}
+                  className="game-button mt-4"
+                >
+                  もう一度プレイ
+                </button>
+              )}
+              
+              <button 
+                onClick={toggleNapoleon}
+                className="game-button mt-4"
+              >
+                ゲームを閉じる
+              </button>
+            </div>
+          )}
+
           {/* チャットウィンドウ */}
           <div className="h-[500px] overflow-y-auto p-4 bg-gray-50">
             <div className="flex flex-col gap-4">
@@ -2081,7 +2506,7 @@ export default function MyChatbot() {
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               rows={2}
-              placeholder="メッセージを入力...「マルバツ」もしくは「オセロ」と入力するとゲームが始まるよ"
+              placeholder="メッセージを入力...「マルバツ」「オセロ」「ナポレオン」と入力するとゲームが始まるよ"
               disabled={loading}
             />
             <button 
